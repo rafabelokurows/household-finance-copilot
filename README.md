@@ -102,8 +102,12 @@ Use `dbt seed` with anonymized CSV files in `dbt/seeds/` to populate demo data f
                         +------------------+
 ```
 
+## Architecture Decisions
+
+Key decisions (AI model, database, email strategy, deployment, privacy) are documented in [docs/ADR.md](docs/ADR.md).
+
 ## Users
 
-- **Rafael** (`rafael.belokurows@primetag.net`)
+- **Rafael**
 - **Heloisa**
 - **Shared** — joint expenses tracked separately

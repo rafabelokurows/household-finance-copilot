@@ -17,3 +17,4 @@ dbt/dbt_packages/
 token.json
 credentials.json
 .worktrees/
+.claude/

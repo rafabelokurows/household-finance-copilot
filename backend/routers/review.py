@@ -15,7 +15,7 @@ def _row_to_dict(row) -> dict:
 def list_pending():
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM transactions WHERE status = 'pending' ORDER BY created_at DESC"
+        f"SELECT * FROM transactions WHERE status = '{Status.pending.value}' ORDER BY created_at DESC"
     ).fetchall()
     return [_row_to_dict(r) for r in rows]
 

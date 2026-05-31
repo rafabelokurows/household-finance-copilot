@@ -1,0 +1,15 @@
+name: 'household_finance'
+version: '1.0.0'
+config-version: 2
+profile: 'household_finance'
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+models:
+  household_finance:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

@@ -1,0 +1,6 @@
+household_finance:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/finance.duckdb

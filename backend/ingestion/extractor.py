@@ -84,7 +84,7 @@ def extract_from_bytes(
                 merchant=t.get("merchant"),
                 amount=amount,
                 currency=currency,
-                confidence=float(t.get("confidence", 0.5)),
+                confidence=float(t["confidence"]) if t.get("confidence") is not None else 0.5,
                 notes=t.get("notes"),
             )
         )

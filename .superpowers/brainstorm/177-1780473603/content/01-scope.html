@@ -1,0 +1,26 @@
+<h2>Phase 2 Frontend Scope</h2>
+<p class="subtitle">Which of these screens should Phase 2 include?</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="upload" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Upload Flow</h3>
+      <p>Manual file upload with receipt/invoice image handling. Gemini extracts transaction data. Shows extraction confidence and extracted fields for review before saving.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="review" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Review Queue</h3>
+      <p>Dashboard showing pending transactions. Human-in-the-loop validation. Approve, reject, or edit transaction details. Filter by confidence level, category, date range.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="browse" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Transaction Browser</h3>
+      <p>Read-only view of processed transactions. Search, filter by category/date/amount. Export capabilities. Basic analytics (spending by category, trends).</p>
+    </div>
+  </div>
+</div>

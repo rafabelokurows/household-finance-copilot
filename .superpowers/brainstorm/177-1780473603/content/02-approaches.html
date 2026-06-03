@@ -1,0 +1,35 @@
+<h2>Architecture Approaches</h2>
+<p class="subtitle">Which structure fits Phase 2 best?</p>
+
+<div class="options">
+  <div class="option" data-choice="simple" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Simple Single-File App</h3>
+      <p><strong>Structure:</strong> One <code>app.py</code> with all logic (tabs, queries, UI)</p>
+      <p><strong>Pros:</strong> Fastest to build, no abstraction overhead, easy to understand flow</p>
+      <p><strong>Cons:</strong> Gets messy as features grow, harder to test, all state global</p>
+      <p><strong>Best for:</strong> Quick MVP, don't anticipate major changes soon</p>
+    </div>
+  </div>
+  <div class="option" data-choice="components" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Component-Based Architecture</h3>
+      <p><strong>Structure:</strong> <code>app.py</code> orchestrates, <code>components/</code> folder has review_queue.py, browse.py, utils.py</p>
+      <p><strong>Pros:</strong> Clean separation, easier to test, reusable UI components, maintainable</p>
+      <p><strong>Cons:</strong> More files, slight overhead in wiring components together</p>
+      <p><strong>Best for:</strong> Planning Phase 3+ features, want clean boundaries now</p>
+    </div>
+  </div>
+  <div class="option" data-choice="state" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>State Management Layer</h3>
+      <p><strong>Structure:</strong> Components + <code>services/</code> layer (queries, API calls, caching) + <code>session.py</code> for state</p>
+      <p><strong>Pros:</strong> Clear data flow, easy to swap backend, testable, scales to Phase 3+</p>
+      <p><strong>Cons:</strong> More boilerplate, overkill if app stays small</p>
+      <p><strong>Best for:</strong> Long-term evolution, multiple users, complex state</p>
+    </div>
+  </div>
+</div>

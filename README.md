@@ -29,19 +29,23 @@ An AI-powered household finance platform for Rafael and Heloisa. Ingests bank st
 git clone <repo-url>
 cd Household-Finance-Copilot
 
-# 2. Install backend dependencies
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and set GEMINI_API_KEY (get one free at aistudio.google.com)
+
+# 3. Install backend dependencies
 pip install -r backend/requirements.txt
 
-# 3. Start the backend
+# 4. Start the backend
 python -m uvicorn backend.main:app --reload --port 8000
 
-# 4. Install frontend dependencies
+# 5. Install frontend dependencies
 pip install -r frontend/requirements.txt
 
-# 5. Start the frontend
+# 6. Start the frontend
 cd frontend && streamlit run app.py
 
-# 6. Open the app
+# 7. Open the app
 # Frontend: http://localhost:8501
 # Backend API docs: http://localhost:8000/docs
 ```
@@ -52,6 +56,8 @@ Test credentials (local dev only):
 
 The database is seeded automatically with 10 test transactions on first run.
 
+> **Without `GEMINI_API_KEY`**: app runs in test mode — uploads and Gmail attachments are accepted but no transactions are extracted.
+
 ## Gmail Setup
 
 Ingesting emails requires Google Cloud credentials:
@@ -60,10 +66,20 @@ Ingesting emails requires Google Cloud credentials:
 2. Enable the Gmail API
 3. Create OAuth 2.0 credentials (Desktop app)
 4. Download `credentials.json` and place it in the project root
-5. Set `GMAIL_CREDENTIALS_PATH=credentials.json` in your `.env`
-6. On first run, authenticate via the browser prompt — a `token.json` will be saved locally
+5. On first run, the backend opens a browser for OAuth consent — a `token.json` is saved locally for subsequent runs
+6. The poller runs every 5 minutes by default, fetching emails with PDF/image attachments
+
+Relevant `.env` vars (all optional — defaults work out of the box):
+
+```
+GMAIL_CREDENTIALS_PATH=credentials.json
+GMAIL_TOKEN_PATH=token.json
+GMAIL_POLL_INTERVAL=300
+```
 
 Both `credentials.json` and `token.json` are gitignored and must never be committed.
+
+> **Multiple email accounts**: set up forwarding from all statement-receiving accounts to one dedicated Gmail and point the poller at that account.
 
 ## Privacy
 

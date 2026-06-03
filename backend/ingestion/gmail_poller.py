@@ -1,190 +1,191 @@
-"""Gmail API poller — polls inbox every POLL_INTERVAL seconds for new bank statements."""
-import os
-import re
+"""Gmail API poller — polls for bank statement emails with attachments."""
 import base64
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-
 from dotenv import load_dotenv
-
-from ..ingestion.extractor import extract_from_bytes, get_mime_type
-from ..db.client import get_connection, generate_id
-from ..models import Owner, Status
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 CREDENTIALS_PATH = os.getenv("GMAIL_CREDENTIALS_PATH", "credentials.json")
-TOKEN_PATH = "token.json"
-POLL_INTERVAL = int(os.getenv("GMAIL_POLL_INTERVAL", "300"))  # seconds
+TOKEN_PATH = os.getenv("GMAIL_TOKEN_PATH", "token.json")
+POLL_INTERVAL = int(os.getenv("GMAIL_POLL_INTERVAL", "300"))
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.90"))
-ATTACHMENTS_DIR = Path(os.getenv("ATTACHMENTS_DIR", "data/attachments"))
 
-SUPPORTED_MIME_TYPES = {
-    "image/png", "image/jpeg", "application/pdf", "image/webp"
+ATTACHMENT_MIME_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
 }
 
-_OWNER_PATTERN = re.compile(r"\[(Rafael|Heloisa|Shared)\]", re.IGNORECASE)
 
+def _get_credentials():
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
 
-def _get_gmail_service():
-    """Authenticate and return Gmail API service."""
     creds = None
     if Path(TOKEN_PATH).exists():
         creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
             creds = flow.run_local_server(port=0)
-        Path(TOKEN_PATH).write_text(creds.to_json())
-    return build("gmail", "v1", credentials=creds)
+        with open(TOKEN_PATH, "w") as f:
+            f.write(creds.to_json())
+
+    return creds
 
 
-def _parse_owner(subject: str) -> Owner | None:
-    """Extract owner from email subject like '[Rafael] Bank Statement'."""
-    match = _OWNER_PATTERN.search(subject)
-    if match:
-        name = match.group(1).capitalize()
+def _get_parts(payload):
+    """Recursively collect all leaf parts from a message payload."""
+    parts = []
+    if payload.get("mimeType", "").startswith("multipart/"):
+        for part in payload.get("parts", []):
+            parts.extend(_get_parts(part))
+    else:
+        parts.append(payload)
+    return parts
+
+
+def _poll_once(service, last_poll_time: datetime) -> None:
+    from ..db.client import generate_id, get_connection
+    from ..ingestion.extractor import extract_from_bytes
+    from ..models import Status
+
+    after_ts = int(last_poll_time.timestamp())
+    query = f"has:attachment after:{after_ts}"
+
+    try:
+        results = service.users().messages().list(userId="me", q=query).execute()
+        messages = results.get("messages", [])
+    except Exception as e:
+        logger.error("Gmail list failed: %s", e)
+        return
+
+    stored_total = 0
+    for msg_meta in messages:
+        msg_id = msg_meta["id"]
         try:
-            return Owner(name)
-        except ValueError:
-            return None
-    return None
-
-
-def _process_attachment(
-    service,
-    message_id: str,
-    attachment_id: str,
-    filename: str,
-    mime_type: str,
-    owner: Owner | None,
-) -> int:
-    """Download attachment, extract transactions, store in DuckDB. Returns count stored."""
-    att = service.users().messages().attachments().get(
-        userId="me", messageId=message_id, id=attachment_id
-    ).execute()
-    file_bytes = base64.urlsafe_b64decode(att["data"])
-
-    ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = ATTACHMENTS_DIR / filename
-    save_path.write_bytes(file_bytes)
-
-    result = extract_from_bytes(file_bytes, filename, mime_type)
-
-    conn = get_connection()
-    stored = 0
-    for tx in result.transactions:
-        if tx.date is None or tx.amount is None or tx.merchant is None:
-            logger.warning("Skipping incomplete transaction from %s: %s", filename, tx)
+            msg = service.users().messages().get(
+                userId="me", id=msg_id, format="full"
+            ).execute()
+        except Exception as e:
+            logger.error("Failed to fetch message %s: %s", msg_id, e)
             continue
 
-        status = (
-            Status.approved if tx.confidence >= CONFIDENCE_THRESHOLD else Status.pending
-        )
-        conn.execute(
-            """
-            INSERT INTO transactions
-                (id, date, merchant, amount, currency, category, owner,
-                 confidence, status, source_file, bank, raw_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                generate_id(),
-                tx.date,
-                tx.merchant,
-                float(tx.amount),
-                tx.currency.value,
-                None,
-                owner.value if owner else None,
-                tx.confidence,
-                status.value,
-                filename,
-                result.bank_detected,
-                None,
-                datetime.now(timezone.utc),
-            ],
-        )
-        stored += 1
-    return stored
+        for part in _get_parts(msg.get("payload", {})):
+            mime = part.get("mimeType", "")
+            if mime not in ATTACHMENT_MIME_TYPES:
+                continue
 
+            filename = part.get("filename") or f"attachment_{msg_id}"
+            body = part.get("body", {})
+            attachment_id = body.get("attachmentId")
 
-def poll_once(service) -> int:
-    """Check inbox for unread messages with attachments. Returns total transactions stored."""
-    total = 0
-    results = service.users().messages().list(
-        userId="me",
-        q="is:unread has:attachment",
-        maxResults=50,
-    ).execute()
+            try:
+                if attachment_id:
+                    att = service.users().messages().attachments().get(
+                        userId="me", messageId=msg_id, id=attachment_id
+                    ).execute()
+                    file_bytes = base64.urlsafe_b64decode(att["data"] + "==")
+                else:
+                    file_bytes = base64.urlsafe_b64decode(body.get("data", "") + "==")
+            except Exception as e:
+                logger.error("Failed to decode attachment %s/%s: %s", msg_id, filename, e)
+                continue
 
-    messages = results.get("messages", [])
-    for msg_stub in messages:
-        msg = service.users().messages().get(
-            userId="me", id=msg_stub["id"], format="full"
-        ).execute()
+            result = extract_from_bytes(file_bytes, filename, mime)
 
-        headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-        subject = headers.get("Subject", "")
-        owner = _parse_owner(subject)
-
-        parts = msg["payload"].get("parts", [])
-        for part in parts:
-            if part.get("filename") and part.get("body", {}).get("attachmentId"):
-                mime = part.get("mimeType", "")
-                if mime not in SUPPORTED_MIME_TYPES:
-                    continue
-                filename = part["filename"]
-                att_id = part["body"]["attachmentId"]
-                try:
-                    count = _process_attachment(
-                        service, msg_stub["id"], att_id, filename, mime, owner
+            conn = get_connection()
+            try:
+                for tx in result.transactions:
+                    if tx.date is None or tx.amount is None or tx.merchant is None:
+                        continue
+                    status = (
+                        Status.approved
+                        if tx.confidence >= CONFIDENCE_THRESHOLD
+                        else Status.pending
                     )
-                    total += count
-                except Exception:
-                    logger.exception("Failed to process attachment %s", filename)
+                    tx_id = generate_id()
+                    conn.execute(
+                        """INSERT INTO transactions
+                           (id, date, merchant, amount, currency, category, owner,
+                            confidence, status, source_file, bank, raw_json, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        [
+                            tx_id, tx.date, tx.merchant, float(tx.amount),
+                            tx.currency.value, None, None, tx.confidence,
+                            status.value, filename, result.bank_detected,
+                            None, datetime.now(timezone.utc),
+                        ],
+                    )
+                    conn.execute(
+                        """INSERT INTO documents
+                           (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        [
+                            generate_id(), tx_id, filename, mime, file_bytes,
+                            datetime.now(timezone.utc).isoformat(),
+                        ],
+                    )
+                    stored_total += 1
+                conn.commit()
+            finally:
+                conn.close()
 
-        service.users().messages().modify(
-            userId="me",
-            id=msg_stub["id"],
-            body={"removeLabelIds": ["UNREAD"]},
-        ).execute()
-
-    return total
+    if stored_total:
+        logger.info("Gmail poll: stored %d transactions from new emails", stored_total)
 
 
-def start_polling() -> threading.Thread | None:
-    """Start background polling thread. Returns thread (daemon) or None if credentials missing."""
+def _polling_loop() -> None:
+    from googleapiclient.discovery import build
+
+    try:
+        creds = _get_credentials()
+        service = build("gmail", "v1", credentials=creds)
+    except Exception as e:
+        logger.error("Gmail authentication failed: %s", e)
+        return
+
+    logger.info("Gmail polling started (interval: %ds)", POLL_INTERVAL)
+    last_poll = datetime.now(timezone.utc)
+
+    while True:
+        try:
+            _poll_once(service, last_poll)
+        except Exception as e:
+            logger.error("Gmail poll cycle error: %s", e)
+        last_poll = datetime.now(timezone.utc)
+        time.sleep(POLL_INTERVAL)
+
+
+def start_polling():
+    """Start Gmail polling in a daemon background thread. No-op if credentials not found."""
     if not Path(CREDENTIALS_PATH).exists():
-        logger.warning(
-            "Gmail credentials not found at %s — email polling disabled.", CREDENTIALS_PATH
-        )
+        logger.info("Gmail polling disabled: credentials.json not found at %s", CREDENTIALS_PATH)
         return None
 
-    def _loop():
-        service = _get_gmail_service()
-        logger.info("Gmail polling started (interval: %ds)", POLL_INTERVAL)
-        while True:
-            try:
-                count = poll_once(service)
-                if count:
-                    logger.info("Gmail poll: stored %d transactions", count)
-            except Exception:
-                logger.exception("Gmail poll error")
-            time.sleep(POLL_INTERVAL)
+    try:
+        import google.oauth2.credentials  # noqa: F401
+        import google_auth_oauthlib  # noqa: F401
+        import googleapiclient  # noqa: F401
+    except ImportError:
+        logger.warning("Gmail polling disabled: google-auth libraries not installed")
+        return None
 
-    t = threading.Thread(target=_loop, daemon=True, name="gmail-poller")
-    t.start()
-    return t
+    thread = threading.Thread(target=_polling_loop, daemon=True)
+    thread.start()
+    logger.info("Gmail polling thread started")
+    return thread

@@ -52,6 +52,15 @@ async def upload_file(
              tx.confidence, status.value, file.filename,
              result.bank_detected, None, datetime.now(timezone.utc)],
         )
+
+        # Attach source document to each extracted transaction
+        conn.execute(
+            """INSERT INTO documents (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [generate_id(), tx_id, file.filename, mime, file_bytes,
+             datetime.now(timezone.utc).isoformat()]
+        )
+
         stored += 1
         if status == Status.pending:
             pending += 1
@@ -59,4 +68,10 @@ async def upload_file(
                          "amount": float(tx.amount), "status": status.value,
                          "confidence": tx.confidence})
 
-    return {"stored": stored, "pending_review": pending, "transactions": inserted}
+    conn.commit()
+    return {
+        "stored": stored,
+        "pending_review": pending,
+        "transactions": inserted,
+        "notes": result.extraction_notes,
+    }

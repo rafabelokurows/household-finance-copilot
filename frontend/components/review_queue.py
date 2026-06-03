@@ -1,32 +1,32 @@
+import base64
 import streamlit as st
-import pandas as pd
-from datetime import datetime, timedelta
 from typing import Optional
 from components.utils import (
     make_api_call,
     format_currency,
     format_confidence,
     format_date,
+    get_transaction_document,
 )
 from config import ENDPOINTS, PAGE_SIZE
 
 
 def show_review_queue(token: str):
-    """Display review queue tab with pending transactions."""
+    """Display review queue tab with pending transactions and side document panel."""
 
-    # Initialize session state for review queue
+    # Initialize session state
     if "page_num" not in st.session_state:
         st.session_state["page_num"] = 1
     if "sort_order" not in st.session_state:
         st.session_state["sort_order"] = "date_desc"
+    if "selected_tx_id" not in st.session_state:
+        st.session_state["selected_tx_id"] = None
 
-    # Sort dropdown
+    # Toolbar row
     col1, col2, col3 = st.columns([2, 2, 2])
-
     with col1:
         if st.button("🔄 Check for new emails", use_container_width=True):
             poll_emails(token)
-
     with col2:
         sort_options = {
             "Date (newest first)": "date_desc",
@@ -50,7 +50,6 @@ def show_review_queue(token: str):
     success, response = fetch_pending_transactions(
         token, st.session_state["page_num"], st.session_state["sort_order"]
     )
-
     if not success:
         st.error(response)
         return
@@ -59,35 +58,74 @@ def show_review_queue(token: str):
     total_count = response.get("total", 0)
     total_pages = (total_count + PAGE_SIZE - 1) // PAGE_SIZE
 
-    # Empty state
     if not transactions:
         st.info("✓ No pending transactions! You're all caught up.")
         return
 
-    # Display transactions
-    display_transactions(token, transactions)
+    # Side-panel layout: list left, document right
+    col_list, col_doc = st.columns([1, 1])
 
-    st.markdown("---")
+    with col_list:
+        display_transactions(token, transactions)
 
-    # Pagination
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.session_state["page_num"] > 1:
-            if st.button("← Previous"):
-                st.session_state["page_num"] -= 1
-                st.rerun()
+        st.markdown("---")
 
-    with col2:
-        st.write(
-            f"Page {st.session_state['page_num']} of {total_pages} "
-            f"({total_count} total)"
-        )
+        # Pagination
+        p1, p2, p3 = st.columns(3)
+        with p1:
+            if st.session_state["page_num"] > 1:
+                if st.button("← Previous"):
+                    st.session_state["page_num"] -= 1
+                    st.rerun()
+        with p2:
+            st.write(
+                f"Page {st.session_state['page_num']} of {total_pages} "
+                f"({total_count} total)"
+            )
+        with p3:
+            if st.session_state["page_num"] < total_pages:
+                if st.button("Next →"):
+                    st.session_state["page_num"] += 1
+                    st.rerun()
 
-    with col3:
-        if st.session_state["page_num"] < total_pages:
-            if st.button("Next →"):
-                st.session_state["page_num"] += 1
-                st.rerun()
+    with col_doc:
+        show_document_panel(token)
+
+
+def show_document_panel(token: str):
+    """Render source document panel on right side of review queue."""
+    st.subheader("Source Document")
+
+    tx_id = st.session_state.get("selected_tx_id")
+    if not tx_id:
+        st.info("Click '📄 Source' on a transaction to view its source document.")
+        return
+
+    with st.spinner("Loading document..."):
+        doc = get_transaction_document(token, tx_id)
+
+    if doc is None:
+        st.warning("No document attached to this transaction.")
+        return
+
+    st.caption(f"**{doc['filename']}**  |  Uploaded: {doc.get('uploaded_at', '')[:10]}")
+
+    file_bytes = base64.b64decode(doc["data"])
+    st.download_button(
+        "⬇ Download",
+        data=file_bytes,
+        file_name=doc["filename"],
+        mime=doc["mime_type"],
+        use_container_width=True,
+    )
+
+    mime = doc.get("mime_type", "")
+    if mime.startswith("image/"):
+        st.image(file_bytes, use_container_width=True)
+    elif mime == "application/pdf":
+        st.info("PDF preview not supported. Use the download button to open.")
+    else:
+        st.info(f"Preview not available for {mime}. Use the download button.")
 
 
 def fetch_pending_transactions(
@@ -156,6 +194,15 @@ def display_transactions(token: str, transactions: list):
             with col_c:
                 if st.button("✗ Reject", key=f"reject_{tx['id']}"):
                     reject_transaction(token, tx["id"])
+
+            with col_d:
+                label = "📄 Source" if st.session_state.get("selected_tx_id") != tx["id"] else "◀ Close"
+                if st.button(label, key=f"doc_{tx['id']}"):
+                    if st.session_state.get("selected_tx_id") == tx["id"]:
+                        st.session_state["selected_tx_id"] = None
+                    else:
+                        st.session_state["selected_tx_id"] = tx["id"]
+                    st.rerun()
 
             # Edit form (inline)
             if st.session_state.get(f"edit_{tx['id']}", False):

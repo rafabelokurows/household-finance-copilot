@@ -102,6 +102,14 @@ def format_confidence(confidence: int) -> str:
         return f"{confidence}% ✓"
 
 
+def get_transaction_document(token: str, tx_id: str):
+    """Fetch document for a transaction. Returns doc dict or None."""
+    success, response = make_api_call(
+        "GET", f"{ENDPOINTS['transactions']}/{tx_id}/document", token=token
+    )
+    return response if success else None
+
+
 def format_date(date_str: str) -> str:
     """Format ISO date string to readable format."""
     try:

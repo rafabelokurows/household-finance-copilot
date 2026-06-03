@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db.client import get_connection
 from .ingestion.gmail_poller import start_polling
-from .routers import upload, transactions, review
+from .routers import upload, transactions, review, auth, analytics, documents
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,9 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(upload.router, prefix="/upload", tags=["ingestion"])
-app.include_router(transactions.router, prefix="/transactions", tags=["transactions"])
-app.include_router(review.router, prefix="/review", tags=["review"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(upload.router, prefix="/api/upload", tags=["ingestion"])
+app.include_router(transactions.router, prefix="/api/transactions", tags=["transactions"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(review.router, prefix="/api/review", tags=["review"])
+app.include_router(documents.router, prefix="/api/transactions", tags=["documents"])
 
 
 @app.get("/health")

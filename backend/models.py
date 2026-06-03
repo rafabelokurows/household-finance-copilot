@@ -98,3 +98,12 @@ class ExtractionResult(BaseModel):
     source_file: str
     bank_detected: Optional[str] = None
     extraction_notes: Optional[str] = None
+
+
+class DocumentResponse(BaseModel):
+    id: str
+    transaction_id: str
+    filename: str
+    mime_type: str
+    data: str  # base64-encoded file content
+    uploaded_at: str

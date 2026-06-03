@@ -9,8 +9,145 @@ router = APIRouter()
 
 def _row_to_dict(row) -> dict:
     cols = ["id","date","merchant","amount","currency","category","owner",
-            "confidence","status","source_file","bank","raw_json","created_at"]
+            "confidence","status","source_file","bank","description","raw_json","created_at"]
+    if isinstance(row, dict):
+        return row
     return dict(zip(cols, row))
+
+
+# IMPORTANT: Place specific routes BEFORE /{tx_id} so they match first!
+
+@router.get("/pending")
+def list_pending_transactions(
+    sort_by: str = Query("date"),
+    sort_order: str = Query("desc"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+):
+    """Get pending transactions with pagination and sorting."""
+    conn = get_connection()
+
+    # Validate sort_by
+    valid_sort_fields = ["date", "amount", "confidence", "created_at"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "date"
+
+    # Validate sort_order
+    if sort_order.lower() not in ["asc", "desc"]:
+        sort_order = "desc"
+
+    offset = (page - 1) * limit
+
+    # Get total count
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM transactions WHERE status = 'pending'"
+    ).fetchone()[0]
+
+    # Get paginated results
+    rows = conn.execute(
+        f"SELECT * FROM transactions WHERE status = 'pending' "
+        f"ORDER BY {sort_by} {sort_order.upper()} LIMIT ? OFFSET ?",
+        [limit, offset]
+    ).fetchall()
+
+    return {
+        "transactions": [_row_to_dict(r) for r in rows],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }
+
+
+@router.get("/processed")
+def list_processed_transactions(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    sort_by: str = Query("date"),
+    sort_order: str = Query("desc"),
+):
+    """Get processed (approved/rejected) transactions."""
+    conn = get_connection()
+
+    conditions = ["status IN ('approved', 'rejected')"]
+    params = []
+
+    if date_from:
+        conditions.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("date <= ?")
+        params.append(date_to)
+
+    where = "WHERE " + " AND ".join(conditions)
+
+    # Validate sort_by
+    valid_sort_fields = ["date", "amount", "created_at"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "date"
+
+    if sort_order.lower() not in ["asc", "desc"]:
+        sort_order = "desc"
+
+    rows = conn.execute(
+        f"SELECT * FROM transactions {where} "
+        f"ORDER BY {sort_by} {sort_order.upper()}",
+        params
+    ).fetchall()
+
+    return {
+        "transactions": [_row_to_dict(r) for r in rows],
+    }
+
+
+@router.post("/poll_email")
+def poll_email():
+    """Poll for new emails and extract transactions."""
+    # This is a no-op for now since Gmail polling is handled by background thread
+    return {"new_transactions": 0, "status": "checked"}
+
+
+@router.get("/export")
+def export_transactions(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    format: str = Query("csv"),
+):
+    """Export transactions as CSV."""
+    conn = get_connection()
+
+    conditions = []
+    params = []
+
+    if date_from:
+        conditions.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("date <= ?")
+        params.append(date_to)
+
+    where = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+    rows = conn.execute(
+        f"SELECT * FROM transactions {where} ORDER BY date DESC",
+        params
+    ).fetchall()
+
+    # Build CSV content
+    import csv
+    from io import StringIO
+
+    output = StringIO()
+    cols = ["id", "date", "merchant", "amount", "currency", "category", "owner",
+            "confidence", "status", "source_file", "bank", "description", "raw_json", "created_at"]
+
+    writer = csv.DictWriter(output, fieldnames=cols)
+    writer.writeheader()
+
+    for row in rows:
+        row_dict = _row_to_dict(row)
+        writer.writerow(row_dict)
+
+    return output.getvalue()
 
 
 @router.get("")
@@ -73,6 +210,7 @@ def update_transaction(tx_id: str, body: TransactionUpdate):
     conn.execute(
         f"UPDATE transactions SET {', '.join(set_clauses)} WHERE id = ?", params
     )
+    conn.commit()
     row = conn.execute("SELECT * FROM transactions WHERE id = ?", [tx_id]).fetchone()
     return _row_to_dict(row)
 
@@ -84,3 +222,28 @@ def delete_transaction(tx_id: str):
     if not existing:
         raise HTTPException(404, "Transaction not found")
     conn.execute("DELETE FROM transactions WHERE id = ?", [tx_id])
+    conn.commit()
+
+
+@router.post("/{tx_id}/approve")
+def approve_transaction(tx_id: str):
+    """Approve a transaction."""
+    conn = get_connection()
+    row = conn.execute("SELECT id FROM transactions WHERE id = ?", [tx_id]).fetchone()
+    if not row:
+        raise HTTPException(404, "Transaction not found")
+    conn.execute("UPDATE transactions SET status = 'approved' WHERE id = ?", [tx_id])
+    conn.commit()
+    return {"id": tx_id, "status": "approved"}
+
+
+@router.post("/{tx_id}/reject")
+def reject_transaction(tx_id: str):
+    """Reject a transaction."""
+    conn = get_connection()
+    row = conn.execute("SELECT id FROM transactions WHERE id = ?", [tx_id]).fetchone()
+    if not row:
+        raise HTTPException(404, "Transaction not found")
+    conn.execute("UPDATE transactions SET status = 'rejected' WHERE id = ?", [tx_id])
+    conn.commit()
+    return {"id": tx_id, "status": "rejected"}

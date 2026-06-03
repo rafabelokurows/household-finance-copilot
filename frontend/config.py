@@ -17,6 +17,7 @@ ENDPOINTS = {
     "analytics_by_category": f"{API_BASE_URL}/api/analytics/by_category",
     "analytics_trends": f"{API_BASE_URL}/api/analytics/trends",
     "export_transactions": f"{API_BASE_URL}/api/transactions/export",
+    "transactions": f"{API_BASE_URL}/api/transactions",
 }
 
 CATEGORIES = [

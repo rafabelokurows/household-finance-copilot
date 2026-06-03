@@ -7,7 +7,9 @@ router = APIRouter()
 
 def _row_to_dict(row) -> dict:
     cols = ["id","date","merchant","amount","currency","category","owner",
-            "confidence","status","source_file","bank","raw_json","created_at"]
+            "confidence","status","source_file","bank","description","raw_json","created_at"]
+    if isinstance(row, dict):
+        return row
     return dict(zip(cols, row))
 
 
@@ -27,6 +29,7 @@ def approve(tx_id: str):
     if not row:
         raise HTTPException(404, "Transaction not found")
     conn.execute("UPDATE transactions SET status = 'approved' WHERE id = ?", [tx_id])
+    conn.commit()
     return {"id": tx_id, "status": "approved"}
 
 
@@ -37,4 +40,5 @@ def reject(tx_id: str):
     if not row:
         raise HTTPException(404, "Transaction not found")
     conn.execute("UPDATE transactions SET status = 'rejected' WHERE id = ?", [tx_id])
+    conn.commit()
     return {"id": tx_id, "status": "rejected"}

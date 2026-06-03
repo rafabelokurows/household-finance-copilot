@@ -1,36 +1,37 @@
-import os
-import base64
+"""Financial document extraction using Google Gemini Flash."""
 import json
-import re
-from pathlib import Path
-from decimal import Decimal
-import google.generativeai as genai
-from dotenv import load_dotenv
+import logging
+import os
 from ..models import ExtractionResult, ExtractedTransaction, Currency
-from datetime import date
 
-load_dotenv()
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+logger = logging.getLogger(__name__)
 
-EXTRACTION_PROMPT = """
-You are a financial data extraction assistant. Analyze this bank statement, receipt, or financial document.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+MODEL = "gemini-2.0-flash"
 
-Extract ALL transactions visible. For each transaction return a JSON object with:
-- "date": ISO format (YYYY-MM-DD) or null if unclear
-- "merchant": business/payee name, cleaned up (no account numbers), or null
-- "amount": numeric value, positive for credits/income, negative for debits/expenses. null if unclear
-- "currency": one of EUR, USD, GBP, BRL, CHF, PLN, CZK. Detect from document, default EUR
-- "confidence": float 0.0-1.0 reflecting how certain you are about this transaction's data
-- "notes": any uncertainty or ambiguity to flag, or null
+EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL transactions from this bank statement or receipt.
 
-Also detect the bank name if visible.
-
-Respond with ONLY valid JSON in this exact structure:
+Return ONLY valid JSON in this exact format — no markdown, no explanation:
 {
-  "bank_detected": "Bank Name or null",
-  "extraction_notes": "any overall notes or null",
-  "transactions": [ ... ]
+  "bank": "bank name or null",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "merchant": "merchant or description",
+      "amount": 12.34,
+      "currency": "EUR",
+      "confidence": 0.95,
+      "notes": "optional note or null"
+    }
+  ]
 }
+
+Rules:
+- amount is always positive (expenses and income both positive)
+- currency: EUR, USD, GBP, BRL, CHF, PLN, or CZK — default EUR
+- confidence: 0.0-1.0 (how certain you are this is a real transaction)
+- date: use YYYY-MM-DD, infer year from context if not shown
+- If you cannot read the document clearly, return {"bank": null, "transactions": []}
 """
 
 
@@ -39,71 +40,89 @@ def extract_from_bytes(
     filename: str,
     mime_type: str,
 ) -> ExtractionResult:
-    """Extract transactions from image or PDF bytes using Gemini Flash."""
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    """Extract transactions from file bytes using Gemini Flash."""
+    if not GEMINI_API_KEY:
+        logger.info("GEMINI_API_KEY not set — extraction disabled (test mode)")
+        return ExtractionResult(
+            transactions=[],
+            source_file=filename,
+            bank_detected=None,
+            extraction_notes="Extraction disabled: GEMINI_API_KEY not configured",
+        )
 
-    # Gemini accepts inline image data or uploaded files
-    # For images: use inline_data part
-    # For PDFs: use inline_data with application/pdf mime type
-    part = {
-        "inline_data": {
-            "mime_type": mime_type,
-            "data": base64.b64encode(file_bytes).decode(),
-        }
-    }
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(MODEL)
 
-    response = model.generate_content([EXTRACTION_PROMPT, part])
-    raw_text = response.text.strip()
+        blob = {"mime_type": mime_type, "data": file_bytes}
+        response = model.generate_content([EXTRACTION_PROMPT, blob])
+        raw = response.text.strip()
 
-    # Strip markdown code fences if present
-    raw_text = re.sub(r"^```(?:json)?\n?", "", raw_text)
-    raw_text = re.sub(r"\n?```$", "", raw_text)
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
 
-    data = json.loads(raw_text)
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Gemini returned invalid JSON: %s", e)
+        return ExtractionResult(
+            transactions=[],
+            source_file=filename,
+            bank_detected=None,
+            extraction_notes=f"Parse error: {e}",
+        )
+    except Exception as e:
+        logger.error("Gemini extraction failed: %s", e)
+        return ExtractionResult(
+            transactions=[],
+            source_file=filename,
+            bank_detected=None,
+            extraction_notes=f"Extraction error: {e}",
+        )
 
     transactions = []
-    for t in data.get("transactions", []):
-        amount = Decimal(str(t["amount"])) if t.get("amount") is not None else None
-        tx_date = None
-        if t.get("date"):
+    for item in data.get("transactions", []):
+        try:
+            currency_str = item.get("currency", "EUR").upper()
             try:
-                tx_date = date.fromisoformat(t["date"])
+                currency = Currency(currency_str)
             except ValueError:
-                pass
+                currency = Currency.EUR
 
-        currency = Currency.EUR
-        if t.get("currency"):
-            try:
-                currency = Currency(t["currency"].upper())
-            except ValueError:
-                pass
-
-        transactions.append(
-            ExtractedTransaction(
-                date=tx_date,
-                merchant=t.get("merchant"),
-                amount=amount,
+            tx = ExtractedTransaction(
+                date=item.get("date"),
+                merchant=item.get("merchant"),
+                amount=item.get("amount"),
                 currency=currency,
-                confidence=float(t["confidence"]) if t.get("confidence") is not None else 0.5,
-                notes=t.get("notes"),
+                confidence=float(item.get("confidence", 0.5)),
+                notes=item.get("notes"),
             )
-        )
+            transactions.append(tx)
+        except Exception as e:
+            logger.warning("Skipping malformed transaction %s: %s", item, e)
+            continue
 
     return ExtractionResult(
         transactions=transactions,
         source_file=filename,
-        bank_detected=data.get("bank_detected"),
-        extraction_notes=data.get("extraction_notes"),
+        bank_detected=data.get("bank"),
+        extraction_notes=None,
     )
 
 
 def get_mime_type(filename: str) -> str:
-    """Infer MIME type from filename extension."""
-    ext = Path(filename).suffix.lower()
-    return {
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-    }.get(ext, "image/png")
+    """Get MIME type from filename."""
+    name = filename.lower()
+    if name.endswith(".pdf"):
+        return "application/pdf"
+    elif name.endswith(".png"):
+        return "image/png"
+    elif name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    elif name.endswith(".webp"):
+        return "image/webp"
+    return "application/octet-stream"

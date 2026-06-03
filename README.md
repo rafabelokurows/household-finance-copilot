@@ -4,12 +4,12 @@ An AI-powered household finance platform for Rafael and Heloisa. Ingests bank st
 
 ## Features
 
-- **Multi-bank ingestion**: Accepts screenshots and PDFs from any Brazilian bank (Nubank, Itau, Bradesco, etc.)
+- **Multi-bank ingestion**: Accepts screenshots and PDFs from Portuguese banks (e.g. Millennium BCP, Caixa Geral, Santander PT) — designed to work across different countries' statement layouts
 - **AI extraction with Gemini Flash**: Uses Google Gemini 2.0 Flash vision to parse transactions from images and PDFs — free tier friendly
 - **Review queue**: Every extracted transaction goes through a confidence-gated review queue before being committed to the database
-- **Analytics dashboard**: Monthly spend by category, trends, forecasts (statsforecast), and per-user breakdowns
-- **AI copilot**: Ask natural language questions about your finances — powered by Gemini
-- **dbt data modeling**: Clean staging and mart layers on top of DuckDB for reliable reporting
+- **Source document viewer**: Each transaction in the review queue can display its original receipt or bank statement — view inline or download
+- **Analytics dashboard**: Monthly spend by category, trends, and per-user breakdowns
+- **Authentication**: Login/logout with session token management
 
 ## Tech Stack
 
@@ -17,34 +17,40 @@ An AI-powered household finance platform for Rafael and Heloisa. Ingests bank st
 |-------|-----------|
 | Backend API | Python + FastAPI (port 8000) |
 | Frontend | Streamlit (port 8501) |
-| Database | DuckDB (`data/finance.duckdb`) |
+| Database | SQLite (`data/finance.db`) |
 | AI / Vision | Google Gemini 2.0 Flash (`google-generativeai`) |
 | Email ingestion | Gmail API (`google-api-python-client`) |
-| Data modeling | dbt-duckdb |
 | Deployment | Docker Compose (local only) |
 
-## Quick Start
+## Quick Start (local, no Docker)
 
 ```bash
 # 1. Clone the repo
 git clone <repo-url>
 cd Household-Finance-Copilot
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env and fill in your GEMINI_API_KEY and other values
+# 2. Install backend dependencies
+pip install -r backend/requirements.txt
 
-# 3. Start services
-docker-compose up --build
+# 3. Start the backend
+python -m uvicorn backend.main:app --reload --port 8000
 
-# 4. Run dbt models (in a separate terminal)
-cd dbt
-dbt seed && dbt run
+# 4. Install frontend dependencies
+pip install -r frontend/requirements.txt
 
-# 5. Open the app
+# 5. Start the frontend
+cd frontend && streamlit run app.py
+
+# 6. Open the app
 # Frontend: http://localhost:8501
 # Backend API docs: http://localhost:8000/docs
 ```
+
+Test credentials (local dev only):
+- `rafael` / `rafael123`
+- `heloisa` / `heloisa123`
+
+The database is seeded automatically with 10 test transactions on first run.
 
 ## Gmail Setup
 
@@ -62,8 +68,6 @@ Both `credentials.json` and `token.json` are gitignored and must never be commit
 ## Privacy
 
 No real financial data is stored in this repository. The `data/` directory is gitignored.
-
-Use `dbt seed` with anonymized CSV files in `dbt/seeds/` to populate demo data for development.
 
 ## Architecture
 
@@ -84,21 +88,20 @@ Use `dbt seed` with anonymized CSV files in `dbt/seeds/` to populate demo data f
                         +--------+---------+
                                  |
                         +--------v---------+
-                        |    DuckDB        |
+                        |    SQLite        |
                         | data/finance.db  |
-                        +--------+---------+
-                                 |
-                        +--------v---------+
-                        |   dbt models     |
-                        | staging / marts  |
+                        |                  |
+                        | transactions     |
+                        | documents (BLOB) |
                         +--------+---------+
                                  |
                         +--------v---------+
                         | Streamlit Frontend|
                         |   (port 8501)    |
+                        | - Login/logout   |
                         | - Review queue   |
-                        | - Analytics      |
-                        | - AI copilot     |
+                        |   + doc viewer   |
+                        | - Browse/analytics|
                         +------------------+
 ```
 

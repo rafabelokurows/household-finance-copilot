@@ -37,38 +37,42 @@ async def upload_file(
     stored, pending = 0, 0
     inserted = []
 
-    for tx in result.transactions:
-        if tx.date is None or tx.amount is None or tx.merchant is None:
-            continue
-        status = Status.approved if tx.confidence >= CONFIDENCE_THRESHOLD else Status.pending
-        tx_id = generate_id()
-        conn.execute(
-            """INSERT INTO transactions
-               (id, date, merchant, amount, currency, category, owner,
-                confidence, status, source_file, bank, raw_json, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [tx_id, tx.date, tx.merchant, float(tx.amount), tx.currency.value,
-             None, owner_enum.value if owner_enum else None,
-             tx.confidence, status.value, file.filename,
-             result.bank_detected, None, datetime.now(timezone.utc)],
-        )
+    try:
+        for tx in result.transactions:
+            if tx.date is None or tx.amount is None or tx.merchant is None:
+                continue
+            status = Status.approved if tx.confidence >= CONFIDENCE_THRESHOLD else Status.pending
+            tx_id = generate_id()
+            conn.execute(
+                """INSERT INTO transactions
+                   (id, date, merchant, amount, currency, category, owner,
+                    confidence, status, source_file, bank, raw_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [tx_id, tx.date, tx.merchant, float(tx.amount), tx.currency.value,
+                 None, owner_enum.value if owner_enum else None,
+                 tx.confidence, status.value, file.filename,
+                 result.bank_detected, None, datetime.now(timezone.utc)],
+            )
 
-        # Attach source document to each extracted transaction
-        conn.execute(
-            """INSERT INTO documents (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            [generate_id(), tx_id, file.filename, mime, file_bytes,
-             datetime.now(timezone.utc).isoformat()]
-        )
+            # Attach source document to each extracted transaction
+            conn.execute(
+                """INSERT INTO documents (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                [generate_id(), tx_id, file.filename, mime, file_bytes,
+                 datetime.now(timezone.utc).isoformat()]
+            )
 
-        stored += 1
-        if status == Status.pending:
-            pending += 1
-        inserted.append({"id": tx_id, "merchant": tx.merchant,
-                         "amount": float(tx.amount), "status": status.value,
-                         "confidence": tx.confidence})
+            stored += 1
+            if status == Status.pending:
+                pending += 1
+            inserted.append({"id": tx_id, "merchant": tx.merchant,
+                             "amount": float(tx.amount), "status": status.value,
+                             "confidence": tx.confidence})
 
-    conn.commit()
+        conn.commit()
+    finally:
+        conn.close()
+
     return {
         "stored": stored,
         "pending_review": pending,

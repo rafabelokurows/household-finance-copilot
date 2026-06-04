@@ -209,17 +209,19 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
     for tx in transactions:
         tx_id = tx["id"]
         with st.container(border=True):
-            c1, c2, c3, c4 = st.columns([1.2, 1, 1, 2.5])
+            bank = tx.get("bank") or ""
+            merchant = tx.get("merchant") or "—"
+            c1, c2, c3, c4, c5 = st.columns([1, 0.9, 0.9, 0.9, 3.2])
             with c1:
-                st.write(f"**{format_date(tx['date'])}**")
+                st.markdown(f"**{format_date(tx['date'])}**")
             with c2:
-                st.write(format_currency(tx["amount"]))
+                st.markdown(format_currency(tx["amount"]))
             with c3:
-                st.write(tx.get("category") or "—")
+                st.markdown(tx.get("owner") or "—")
             with c4:
-                bank = tx.get("bank") or ""
-                merchant = tx.get("merchant") or "—"
-                st.write(f"**{merchant}**" + (f"  ·  {bank}" if bank else ""))
+                st.markdown(tx.get("category") or "—")
+            with c5:
+                st.markdown(f"**{merchant}**" + (f"  ·  *{bank}*" if bank else ""))
 
             show_tag_section(token, tx_id, tx.get("tags", []), ENDPOINTS, edit_key=f"b_editing_{tx_id}")
 

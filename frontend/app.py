@@ -6,6 +6,17 @@ from config import ENDPOINTS
 
 st.set_page_config(page_title="Household Finance Copilot", layout="wide")
 
+st.markdown("""
+<style>
+div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    padding: 0.35rem 0.6rem !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] > div > div[data-testid="stVerticalBlock"] > div {
+    gap: 0.25rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Initialize session state
 if "auth_token" not in st.session_state:
     st.session_state["auth_token"] = None

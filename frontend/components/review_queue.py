@@ -153,56 +153,46 @@ def display_transactions(token: str, transactions: list):
     for tx in transactions:
         tx_id = tx["id"]
         with st.container(border=True):
-            # Info row
-            c1, c2, c3, c4 = st.columns([1.2, 1, 0.8, 2.5])
-            with c1:
-                st.write(f"**{format_date(tx['date'])}**")
-            with c2:
-                st.write(format_currency(tx["amount"]))
-            with c3:
-                st.write(format_confidence(tx.get("confidence", 0)))
-            with c4:
-                bank = tx.get("bank") or ""
-                merchant = tx.get("merchant") or "—"
-                st.write(f"**{merchant}**" + (f"  ·  {bank}" if bank else ""))
-
-            # Inline owner + category + actions
-            c_own, c_cat, c_app, c_rej, c_edit, c_doc = st.columns([1.2, 1.8, 0.9, 0.9, 0.6, 0.6])
-
             current_owner = tx.get("owner") or "—"
             current_category = tx.get("category") or "—"
+            bank = tx.get("bank") or ""
+            merchant = tx.get("merchant") or "—"
 
+            c1, c2, c3, c_own, c_cat, c_app, c_rej, c_edit, c_doc = st.columns(
+                [1.1, 0.9, 2.2, 1.3, 1.6, 0.9, 0.9, 0.45, 0.45]
+            )
+            with c1:
+                st.markdown(f"**{format_date(tx['date'])}**")
+            with c2:
+                st.markdown(format_currency(tx["amount"]))
+            with c3:
+                st.markdown(f"**{merchant}**" + (f"  ·  *{bank}*" if bank else ""))
             with c_own:
                 owner_val = st.selectbox(
-                    "Owner",
-                    OWNERS,
+                    "Owner", OWNERS,
                     index=OWNERS.index(current_owner) if current_owner in OWNERS else 0,
-                    key=f"owner_{tx_id}",
-                    label_visibility="collapsed",
+                    key=f"owner_{tx_id}", label_visibility="collapsed",
                 )
             with c_cat:
                 cat_val = st.selectbox(
-                    "Category",
-                    CATEGORIES,
+                    "Category", CATEGORIES,
                     index=CATEGORIES.index(current_category) if current_category in CATEGORIES else 0,
-                    key=f"cat_{tx_id}",
-                    label_visibility="collapsed",
+                    key=f"cat_{tx_id}", label_visibility="collapsed",
                 )
             with c_app:
-                if st.button("✓ Approve", key=f"approve_{tx_id}", use_container_width=True):
+                if st.button("✓", key=f"approve_{tx_id}", use_container_width=True):
                     save_and_approve(token, tx_id, owner_val, cat_val)
             with c_rej:
-                if st.button("✗ Reject", key=f"reject_{tx_id}", use_container_width=True):
+                if st.button("✗", key=f"reject_{tx_id}", use_container_width=True):
                     reject_transaction(token, tx_id)
             with c_edit:
                 if st.button("✏️", key=f"edit_btn_{tx_id}", use_container_width=True):
-                    key = f"editing_{tx_id}"
-                    st.session_state[key] = not st.session_state.get(key, False)
+                    k = f"editing_{tx_id}"
+                    st.session_state[k] = not st.session_state.get(k, False)
                     st.rerun()
             with c_doc:
                 is_selected = st.session_state.get("selected_tx_id") == tx_id
-                label = "◀" if is_selected else "📄"
-                if st.button(label, key=f"doc_{tx_id}", use_container_width=True):
+                if st.button("◀" if is_selected else "📄", key=f"doc_{tx_id}", use_container_width=True):
                     st.session_state["selected_tx_id"] = None if is_selected else tx_id
                     st.rerun()
 

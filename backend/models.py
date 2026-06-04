@@ -85,7 +85,7 @@ class Transaction(TransactionBase):
 
 
 class ExtractedTransaction(BaseModel):
-    date: Optional[date] = None
+    date: Optional[str] = None
     merchant: Optional[str] = None
     amount: Optional[Decimal] = None
     currency: Currency = Currency.EUR

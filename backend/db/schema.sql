@@ -23,4 +23,14 @@ CREATE TABLE IF NOT EXISTS documents (
     file_blob      BLOB NOT NULL,
     uploaded_at    TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+
+CREATE TABLE IF NOT EXISTS gmail_poll_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS gmail_processed_messages (
+    message_id   TEXT PRIMARY KEY,
+    processed_at TEXT NOT NULL
 )

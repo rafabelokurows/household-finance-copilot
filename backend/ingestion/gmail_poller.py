@@ -33,8 +33,14 @@ def _get_credentials():
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     creds = None
-    if Path(TOKEN_PATH).exists():
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    token_path = Path(TOKEN_PATH)
+    if token_path.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+        except Exception:
+            logger.warning("token.json corrupted — deleting and re-authenticating")
+            token_path.unlink()
+            creds = None
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -59,24 +65,58 @@ def _get_parts(payload):
     return parts
 
 
+def _load_last_poll(conn) -> datetime:
+    row = conn.execute(
+        "SELECT value FROM gmail_poll_state WHERE key = 'last_poll'"
+    ).fetchone()
+    if row:
+        return datetime.fromisoformat(row[0])
+    return datetime.now(timezone.utc)
+
+
+def _save_last_poll(conn, dt: datetime) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO gmail_poll_state (key, value) VALUES ('last_poll', ?)",
+        [dt.isoformat()],
+    )
+    conn.commit()
+
+
+def _is_processed(conn, msg_id: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM gmail_processed_messages WHERE message_id = ?", [msg_id]
+    ).fetchone() is not None
+
+
+def _mark_processed(conn, msg_id: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO gmail_processed_messages (message_id, processed_at) VALUES (?, ?)",
+        [msg_id, datetime.now(timezone.utc).isoformat()],
+    )
+
+
 def _poll_once(service, last_poll_time: datetime) -> None:
     from ..db.client import generate_id, get_connection
     from ..ingestion.extractor import extract_from_bytes
     from ..models import Status
 
+    conn = get_connection()
     after_ts = int(last_poll_time.timestamp())
-    query = f"has:attachment after:{after_ts}"
+    query = (
+        f"from:(rafabelokurows@gmail.com OR rafadv123@gmail.com OR heloisa.aantunes@gmail.com)"
+        f" has:attachment after:{after_ts}"
+    )
 
-    try:
-        results = service.users().messages().list(userId="me", q=query).execute()
-        messages = results.get("messages", [])
-    except Exception as e:
-        logger.error("Gmail list failed: %s", e)
-        return
+    results = service.users().messages().list(userId="me", q=query).execute()
+    messages = results.get("messages", [])
 
     stored_total = 0
     for msg_meta in messages:
         msg_id = msg_meta["id"]
+
+        if _is_processed(conn, msg_id):
+            continue
+
         try:
             msg = service.users().messages().get(
                 userId="me", id=msg_id, format="full"
@@ -107,43 +147,51 @@ def _poll_once(service, last_poll_time: datetime) -> None:
                 continue
 
             result = extract_from_bytes(file_bytes, filename, mime)
+            valid_txs = [
+                tx for tx in result.transactions
+                if tx.date is not None and tx.amount is not None and tx.merchant is not None
+            ]
 
-            conn = get_connection()
-            try:
-                for tx in result.transactions:
-                    if tx.date is None or tx.amount is None or tx.merchant is None:
-                        continue
-                    status = (
-                        Status.approved
-                        if tx.confidence >= CONFIDENCE_THRESHOLD
-                        else Status.pending
-                    )
-                    tx_id = generate_id()
-                    conn.execute(
-                        """INSERT INTO transactions
-                           (id, date, merchant, amount, currency, category, owner,
-                            confidence, status, source_file, bank, raw_json, created_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        [
-                            tx_id, tx.date, tx.merchant, float(tx.amount),
-                            tx.currency.value, None, None, tx.confidence,
-                            status.value, filename, result.bank_detected,
-                            None, datetime.now(timezone.utc),
-                        ],
-                    )
-                    conn.execute(
-                        """INSERT INTO documents
-                           (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        [
-                            generate_id(), tx_id, filename, mime, file_bytes,
-                            datetime.now(timezone.utc).isoformat(),
-                        ],
-                    )
-                    stored_total += 1
-                conn.commit()
-            finally:
-                conn.close()
+            if not valid_txs:
+                continue
+
+            first_tx_id = None
+            for i, tx in enumerate(valid_txs):
+                status = (
+                    Status.approved
+                    if tx.confidence >= CONFIDENCE_THRESHOLD
+                    else Status.pending
+                )
+                tx_id = generate_id()
+                if i == 0:
+                    first_tx_id = tx_id
+                conn.execute(
+                    """INSERT INTO transactions
+                       (id, date, merchant, amount, currency, category, owner,
+                        confidence, status, source_file, bank, raw_json, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [
+                        tx_id, tx.date, tx.merchant, float(tx.amount),
+                        tx.currency.value, None, None, tx.confidence,
+                        status.value, filename, result.bank_detected,
+                        None, datetime.now(timezone.utc),
+                    ],
+                )
+                stored_total += 1
+
+            # Store BLOB once per attachment, linked to first transaction only
+            conn.execute(
+                """INSERT INTO documents
+                   (id, transaction_id, filename, mime_type, file_blob, uploaded_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                [
+                    generate_id(), first_tx_id, filename, mime, file_bytes,
+                    datetime.now(timezone.utc).isoformat(),
+                ],
+            )
+
+        _mark_processed(conn, msg_id)
+        conn.commit()
 
     if stored_total:
         logger.info("Gmail poll: stored %d transactions from new emails", stored_total)
@@ -151,6 +199,7 @@ def _poll_once(service, last_poll_time: datetime) -> None:
 
 def _polling_loop() -> None:
     from googleapiclient.discovery import build
+    from ..db.client import get_connection
 
     try:
         creds = _get_credentials()
@@ -159,15 +208,23 @@ def _polling_loop() -> None:
         logger.error("Gmail authentication failed: %s", e)
         return
 
-    logger.info("Gmail polling started (interval: %ds)", POLL_INTERVAL)
-    last_poll = datetime.now(timezone.utc)
+    conn = get_connection()
+    last_poll = _load_last_poll(conn)
+    logger.info(
+        "Gmail polling started (interval: %ds, resuming from %s)",
+        POLL_INTERVAL,
+        last_poll.isoformat(),
+    )
 
     while True:
+        poll_start = datetime.now(timezone.utc)
         try:
             _poll_once(service, last_poll)
+            _save_last_poll(conn, poll_start)
+            last_poll = poll_start
         except Exception as e:
             logger.error("Gmail poll cycle error: %s", e)
-        last_poll = datetime.now(timezone.utc)
+            # last_poll NOT advanced — same window retried next cycle
         time.sleep(POLL_INTERVAL)
 
 

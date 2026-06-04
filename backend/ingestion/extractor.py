@@ -7,7 +7,7 @@ from ..models import ExtractionResult, ExtractedTransaction, Currency
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash"
 
 EXTRACTION_PROMPT = """You are a financial document parser. Extract ALL transactions from this bank statement or receipt.
 
@@ -51,12 +51,17 @@ def extract_from_bytes(
         )
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(MODEL)
+        from google import genai
+        from google.genai import types
 
-        blob = {"mime_type": mime_type, "data": file_bytes}
-        response = model.generate_content([EXTRACTION_PROMPT, blob])
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=[
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                EXTRACTION_PROMPT,
+            ],
+        )
         raw = response.text.strip()
 
         # Strip markdown code fences if present

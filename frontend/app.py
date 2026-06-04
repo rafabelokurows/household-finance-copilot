@@ -1,7 +1,8 @@
 import streamlit as st
-from components.utils import login, logout
+from components.utils import login, logout, make_api_call
 from components.review_queue import show_review_queue
 from components.browse import show_browse
+from config import ENDPOINTS
 
 st.set_page_config(page_title="Household Finance Copilot", layout="wide")
 
@@ -52,14 +53,21 @@ def show_main_app():
 
     st.markdown("---")
 
-    # Tabs
-    tab1, tab2 = st.tabs(["Review Queue", "Browse"])
+    # Default to Browse when no pending transactions
+    token = st.session_state["auth_token"]
+    ok, resp = make_api_call("GET", ENDPOINTS["pending_transactions"], token=token, params={"limit": 1})
+    has_pending = ok and resp.get("total", 0) > 0
 
-    with tab1:
-        show_review_queue(st.session_state["auth_token"])
+    if has_pending:
+        tab_review, tab_browse = st.tabs(["Review Queue", "Browse"])
+    else:
+        tab_browse, tab_review = st.tabs(["Browse", "Review Queue"])
 
-    with tab2:
-        show_browse(st.session_state["auth_token"])
+    with tab_review:
+        show_review_queue(token)
+
+    with tab_browse:
+        show_browse(token)
 
 
 # Main logic

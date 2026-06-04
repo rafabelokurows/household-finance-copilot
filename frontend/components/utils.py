@@ -106,27 +106,36 @@ def format_confidence(confidence: int) -> str:
         return f"{confidence}% ✓"
 
 
-def show_tag_section(token: str, tx_id: str, current_tags: list, endpoints: dict):
-    """Inline tag chips + add input. Pass ENDPOINTS dict from config."""
-    tag_cols = st.columns([4, 1])
-    with tag_cols[0]:
+def show_tag_section(token: str, tx_id: str, current_tags: list, endpoints: dict, edit_key: str = None):
+    """Inline tag chips + add input. Optional edit_key renders ✏️ toggle in same row."""
+    if edit_key:
+        c_chips, c_input, c_add, c_edit = st.columns([3.2, 1.2, 0.4, 0.4])
+    else:
+        c_chips, c_input, c_add = st.columns([3.2, 1.2, 0.4])
+
+    with c_chips:
         if current_tags:
-            cols = st.columns(min(len(current_tags), 6))
+            chip_cols = st.columns(min(len(current_tags), 5))
             for i, tag in enumerate(current_tags):
-                with cols[i % len(cols)]:
+                with chip_cols[i % len(chip_cols)]:
                     if st.button(f"× {tag}", key=f"rmtag_{tx_id}_{tag}", use_container_width=True):
                         put_tags(token, tx_id, [t for t in current_tags if t != tag], endpoints)
-        else:
-            st.caption("no tags")
-    with tag_cols[1]:
+
+    with c_input:
         new_tag = st.text_input(
-            "tag",
-            key=f"tag_input_{tx_id}",
-            label_visibility="collapsed",
-            placeholder="add tag…",
+            "tag", key=f"tag_input_{tx_id}",
+            label_visibility="collapsed", placeholder="add tag…",
         )
+
+    with c_add:
         if st.button("＋", key=f"tag_add_{tx_id}", use_container_width=True) and new_tag.strip():
             put_tags(token, tx_id, current_tags + [new_tag.strip().lower()], endpoints)
+
+    if edit_key:
+        with c_edit:
+            if st.button("✏️", key=f"edit_toggle_{tx_id}", use_container_width=True):
+                st.session_state[edit_key] = not st.session_state.get(edit_key, False)
+                st.rerun()
 
 
 def put_tags(token: str, tx_id: str, tags: list, endpoints: dict):

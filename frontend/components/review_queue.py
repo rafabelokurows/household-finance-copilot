@@ -214,22 +214,19 @@ def display_transactions(token: str, transactions: list):
 
 def show_edit_form(token: str, tx: dict):
     tx_id = tx["id"]
-    st.markdown("**Edit Transaction**")
-    c1, c2 = st.columns(2)
-    with c1:
-        merchant = st.text_input("Merchant", value=tx.get("merchant", ""), key=f"e_merch_{tx_id}")
-        amount = st.number_input("Amount", value=float(tx["amount"]), key=f"e_amt_{tx_id}")
-    with c2:
-        description = st.text_input("Description", value=tx.get("description") or "", key=f"e_desc_{tx_id}")
-
-    c_save, c_cancel = st.columns(2)
-    with c_save:
-        if st.button("Save", key=f"save_{tx_id}"):
+    with st.form(key=f"edit_form_{tx_id}"):
+        st.markdown("**Edit Transaction**")
+        c1, c2 = st.columns(2)
+        with c1:
+            merchant = st.text_input("Merchant", value=tx.get("merchant", ""), key=f"e_merch_{tx_id}")
+            amount = st.number_input("Amount", value=float(tx["amount"]), key=f"e_amt_{tx_id}")
+        with c2:
+            description = st.text_input("Description", value=tx.get("description") or "", key=f"e_desc_{tx_id}")
+        if st.form_submit_button("Save"):
             update_transaction(token, tx_id, merchant=merchant, amount=amount, description=description)
-    with c_cancel:
-        if st.button("Cancel", key=f"cancel_{tx_id}"):
-            st.session_state[f"editing_{tx_id}"] = False
-            st.rerun()
+    if st.button("Cancel", key=f"cancel_{tx_id}"):
+        st.session_state[f"editing_{tx_id}"] = False
+        st.rerun()
 
 
 def save_and_approve(token: str, tx_id: str, owner: str, category: str):

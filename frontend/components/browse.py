@@ -1,8 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
 from datetime import datetime, timedelta
-from components.utils import make_api_call, format_currency, format_date
+from components.utils import make_api_call, format_currency, format_date, show_tag_section
 from config import ENDPOINTS, CATEGORIES
 
 
@@ -181,7 +180,7 @@ def show_tag_chart(token: str, date_from, date_to):
 
 
 def show_transaction_table(token: str, date_from, date_to, category_filter: str):
-    """Display processed transactions table."""
+    """Display processed transactions as interactive cards."""
     success, response = make_api_call(
         "GET",
         ENDPOINTS["processed_transactions"],
@@ -200,7 +199,6 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
 
     transactions = response.get("transactions", [])
 
-    # Filter by category if selected
     if category_filter != "All":
         transactions = [tx for tx in transactions if tx.get("category") == category_filter]
 
@@ -208,20 +206,76 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
         st.info("No transactions found for this period")
         return
 
-    # Display as table
-    df = pd.DataFrame(
-        [
-            {
-                "Date": format_date(tx["date"]),
-                "Merchant": tx.get("merchant", "—"),
-                "Amount": format_currency(tx["amount"]),
-                "Category": tx.get("category", "—"),
-            }
-            for tx in transactions
-        ]
-    )
+    for tx in transactions:
+        tx_id = tx["id"]
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([1.2, 1, 1, 2.5])
+            with c1:
+                st.write(f"**{format_date(tx['date'])}**")
+            with c2:
+                st.write(format_currency(tx["amount"]))
+            with c3:
+                st.write(tx.get("category") or "—")
+            with c4:
+                bank = tx.get("bank") or ""
+                merchant = tx.get("merchant") or "—"
+                st.write(f"**{merchant}**" + (f"  ·  {bank}" if bank else ""))
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+            show_tag_section(token, tx_id, tx.get("tags", []), ENDPOINTS)
+
+            if st.button("✏️ Edit", key=f"b_edit_{tx_id}"):
+                key = f"b_editing_{tx_id}"
+                st.session_state[key] = not st.session_state.get(key, False)
+                st.rerun()
+
+            if st.session_state.get(f"b_editing_{tx_id}", False):
+                show_browse_edit_form(token, tx)
+
+
+def show_browse_edit_form(token: str, tx: dict):
+    tx_id = tx["id"]
+    st.markdown("**Edit Transaction**")
+    c1, c2 = st.columns(2)
+    with c1:
+        merchant = st.text_input("Merchant", value=tx.get("merchant", ""), key=f"b_merch_{tx_id}")
+        amount = st.number_input("Amount", value=float(tx["amount"]), key=f"b_amt_{tx_id}")
+        owner_options = ["—", "Rafael", "Heloisa", "Shared"]
+        current_owner = tx.get("owner") or "—"
+        owner = st.selectbox("Owner", owner_options,
+            index=owner_options.index(current_owner) if current_owner in owner_options else 0,
+            key=f"b_owner_{tx_id}")
+    with c2:
+        description = st.text_input("Description", value=tx.get("description") or "", key=f"b_desc_{tx_id}")
+        cat_options = ["—"] + CATEGORIES
+        current_cat = tx.get("category") or "—"
+        category = st.selectbox("Category", cat_options,
+            index=cat_options.index(current_cat) if current_cat in cat_options else 0,
+            key=f"b_cat_{tx_id}")
+
+    c_save, c_cancel = st.columns(2)
+    with c_save:
+        if st.button("Save", key=f"b_save_{tx_id}"):
+            data = {"merchant": merchant, "amount": amount, "description": description}
+            if owner != "—":
+                data["owner"] = owner
+            if category != "—":
+                data["category"] = category
+            success, response = make_api_call(
+                "PATCH",
+                f"{ENDPOINTS['update_transaction']}/{tx_id}",
+                data=data,
+                token=token,
+            )
+            if success:
+                st.success("✓ Updated")
+                st.session_state[f"b_editing_{tx_id}"] = False
+                st.rerun()
+            else:
+                st.error(f"Failed: {response}")
+    with c_cancel:
+        if st.button("Cancel", key=f"b_cancel_{tx_id}"):
+            st.session_state[f"b_editing_{tx_id}"] = False
+            st.rerun()
 
 
 def export_csv(token: str, date_from, date_to):

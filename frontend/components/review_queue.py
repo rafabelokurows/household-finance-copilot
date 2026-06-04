@@ -7,6 +7,8 @@ from components.utils import (
     format_confidence,
     format_date,
     get_transaction_document,
+    show_tag_section,
+    put_tags,
 )
 from config import ENDPOINTS, PAGE_SIZE
 
@@ -204,48 +206,10 @@ def display_transactions(token: str, transactions: list):
                     st.session_state["selected_tx_id"] = None if is_selected else tx_id
                     st.rerun()
 
-            show_tag_section(token, tx_id, tx.get("tags", []))
+            show_tag_section(token, tx_id, tx.get("tags", []), ENDPOINTS)
 
             if st.session_state.get(f"editing_{tx_id}", False):
                 show_edit_form(token, tx)
-
-
-def show_tag_section(token: str, tx_id: str, current_tags: list):
-    """Inline tag chips + add input below each transaction card."""
-    tag_cols = st.columns([4, 1])
-
-    with tag_cols[0]:
-        if current_tags:
-            cols = st.columns(min(len(current_tags), 6))
-            for i, tag in enumerate(current_tags):
-                with cols[i % len(cols)]:
-                    if st.button(f"× {tag}", key=f"rmtag_{tx_id}_{tag}", use_container_width=True):
-                        put_tags(token, tx_id, [t for t in current_tags if t != tag])
-        else:
-            st.caption("no tags")
-
-    with tag_cols[1]:
-        new_tag = st.text_input(
-            "tag",
-            key=f"tag_input_{tx_id}",
-            label_visibility="collapsed",
-            placeholder="add tag…",
-        )
-        if st.button("＋", key=f"tag_add_{tx_id}", use_container_width=True) and new_tag.strip():
-            put_tags(token, tx_id, current_tags + [new_tag.strip().lower()])
-
-
-def put_tags(token: str, tx_id: str, tags: list):
-    success, response = make_api_call(
-        "PUT",
-        f"{ENDPOINTS['transaction_tags']}/{tx_id}/tags",
-        data={"tags": tags},
-        token=token,
-    )
-    if success:
-        st.rerun()
-    else:
-        st.error(f"Failed to update tags: {response}")
 
 
 def show_edit_form(token: str, tx: dict):

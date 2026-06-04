@@ -10,11 +10,17 @@ from components.utils import (
 )
 from config import ENDPOINTS, PAGE_SIZE
 
+OWNERS = ["—", "Rafael", "Heloisa", "Shared"]
+CATEGORIES = [
+    "—", "Groceries", "Restaurants", "Transportation", "Utilities",
+    "Shopping", "Entertainment", "Healthcare", "Travel",
+    "Insurance", "Salary", "Bonus", "Investments", "Other",
+]
+
 
 def show_review_queue(token: str):
     """Display review queue tab with pending transactions and side document panel."""
 
-    # Initialize session state
     if "page_num" not in st.session_state:
         st.session_state["page_num"] = 1
     if "sort_order" not in st.session_state:
@@ -22,7 +28,6 @@ def show_review_queue(token: str):
     if "selected_tx_id" not in st.session_state:
         st.session_state["selected_tx_id"] = None
 
-    # Toolbar row
     col1, col2, col3 = st.columns([2, 2, 2])
     with col1:
         if st.button("🔄 Check for new emails", use_container_width=True):
@@ -46,7 +51,6 @@ def show_review_queue(token: str):
 
     st.markdown("---")
 
-    # Fetch pending transactions
     success, response = fetch_pending_transactions(
         token, st.session_state["page_num"], st.session_state["sort_order"]
     )
@@ -56,21 +60,18 @@ def show_review_queue(token: str):
 
     transactions = response.get("transactions", [])
     total_count = response.get("total", 0)
-    total_pages = (total_count + PAGE_SIZE - 1) // PAGE_SIZE
+    total_pages = max(1, (total_count + PAGE_SIZE - 1) // PAGE_SIZE)
 
     if not transactions:
         st.info("✓ No pending transactions! You're all caught up.")
         return
 
-    # Side-panel layout: list left, document right
     col_list, col_doc = st.columns([1, 1])
 
     with col_list:
         display_transactions(token, transactions)
 
         st.markdown("---")
-
-        # Pagination
         p1, p2, p3 = st.columns(3)
         with p1:
             if st.session_state["page_num"] > 1:
@@ -93,12 +94,10 @@ def show_review_queue(token: str):
 
 
 def show_document_panel(token: str):
-    """Render source document panel on right side of review queue."""
     st.subheader("Source Document")
-
     tx_id = st.session_state.get("selected_tx_id")
     if not tx_id:
-        st.info("Click '📄 Source' on a transaction to view its source document.")
+        st.info("Click '📄' on a transaction to view its source document.")
         return
 
     with st.spinner("Loading document..."):
@@ -109,7 +108,6 @@ def show_document_panel(token: str):
         return
 
     st.caption(f"**{doc['filename']}**  |  Uploaded: {doc.get('uploaded_at', '')[:10]}")
-
     file_bytes = base64.b64decode(doc["data"])
     st.download_button(
         "⬇ Download",
@@ -128,29 +126,17 @@ def show_document_panel(token: str):
         st.info(f"Preview not available for {mime}. Use the download button.")
 
 
-def fetch_pending_transactions(
-    token: str, page: int, sort_order: str
-) -> tuple[bool, dict]:
-    """Fetch pending transactions from backend."""
+def fetch_pending_transactions(token: str, page: int, sort_order: str) -> tuple[bool, dict]:
     sort_by, order = parse_sort_order(sort_order)
-
-    success, response = make_api_call(
+    return make_api_call(
         "GET",
         ENDPOINTS["pending_transactions"],
         token=token,
-        params={
-            "sort_by": sort_by,
-            "sort_order": order,
-            "page": page,
-            "limit": PAGE_SIZE,
-        },
+        params={"sort_by": sort_by, "sort_order": order, "page": page, "limit": PAGE_SIZE},
     )
-
-    return success, response
 
 
 def parse_sort_order(sort_order: str) -> tuple[str, str]:
-    """Convert UI sort string to API params."""
     mapping = {
         "date_desc": ("date", "desc"),
         "date_asc": ("date", "asc"),
@@ -162,145 +148,147 @@ def parse_sort_order(sort_order: str) -> tuple[str, str]:
 
 
 def display_transactions(token: str, transactions: list):
-    """Display transactions as interactive table with edit/approve/reject."""
-
-    for idx, tx in enumerate(transactions):
+    for tx in transactions:
+        tx_id = tx["id"]
         with st.container(border=True):
-            col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 2])
-
-            with col1:
+            # Info row
+            c1, c2, c3, c4 = st.columns([1.2, 1, 0.8, 2.5])
+            with c1:
                 st.write(f"**{format_date(tx['date'])}**")
-            with col2:
-                st.write(f"{format_currency(tx['amount'])}")
-            with col3:
+            with c2:
+                st.write(format_currency(tx["amount"]))
+            with c3:
                 st.write(format_confidence(tx.get("confidence", 0)))
-            with col4:
-                st.write(tx.get("category") or "—")
-            with col5:
-                st.write(tx.get("merchant") or "—")
+            with c4:
+                bank = tx.get("bank") or ""
+                merchant = tx.get("merchant") or "—"
+                st.write(f"**{merchant}**" + (f"  ·  {bank}" if bank else ""))
 
-            st.write(f"Description: {tx.get('description', '—')}")
+            # Inline owner + category + actions
+            c_own, c_cat, c_app, c_rej, c_edit, c_doc = st.columns([1.2, 1.8, 0.9, 0.9, 0.6, 0.6])
 
-            # Action buttons
-            col_a, col_b, col_c, col_d = st.columns(4)
-            with col_a:
-                if st.button("✏️ Edit", key=f"edit_{tx['id']}"):
-                    st.session_state[f"edit_{tx['id']}"] = True
+            current_owner = tx.get("owner") or "—"
+            current_category = tx.get("category") or "—"
 
-            with col_b:
-                if st.button("✓ Approve", key=f"approve_{tx['id']}"):
-                    approve_transaction(token, tx["id"])
-
-            with col_c:
-                if st.button("✗ Reject", key=f"reject_{tx['id']}"):
-                    reject_transaction(token, tx["id"])
-
-            with col_d:
-                label = "📄 Source" if st.session_state.get("selected_tx_id") != tx["id"] else "◀ Close"
-                if st.button(label, key=f"doc_{tx['id']}"):
-                    if st.session_state.get("selected_tx_id") == tx["id"]:
-                        st.session_state["selected_tx_id"] = None
-                    else:
-                        st.session_state["selected_tx_id"] = tx["id"]
+            with c_own:
+                owner_val = st.selectbox(
+                    "Owner",
+                    OWNERS,
+                    index=OWNERS.index(current_owner) if current_owner in OWNERS else 0,
+                    key=f"owner_{tx_id}",
+                    label_visibility="collapsed",
+                )
+            with c_cat:
+                cat_val = st.selectbox(
+                    "Category",
+                    CATEGORIES,
+                    index=CATEGORIES.index(current_category) if current_category in CATEGORIES else 0,
+                    key=f"cat_{tx_id}",
+                    label_visibility="collapsed",
+                )
+            with c_app:
+                if st.button("✓ Approve", key=f"approve_{tx_id}", use_container_width=True):
+                    save_and_approve(token, tx_id, owner_val, cat_val)
+            with c_rej:
+                if st.button("✗ Reject", key=f"reject_{tx_id}", use_container_width=True):
+                    reject_transaction(token, tx_id)
+            with c_edit:
+                if st.button("✏️", key=f"edit_btn_{tx_id}", use_container_width=True):
+                    key = f"editing_{tx_id}"
+                    st.session_state[key] = not st.session_state.get(key, False)
+                    st.rerun()
+            with c_doc:
+                is_selected = st.session_state.get("selected_tx_id") == tx_id
+                label = "◀" if is_selected else "📄"
+                if st.button(label, key=f"doc_{tx_id}", use_container_width=True):
+                    st.session_state["selected_tx_id"] = None if is_selected else tx_id
                     st.rerun()
 
-            # Edit form (inline)
-            if st.session_state.get(f"edit_{tx['id']}", False):
+            show_tag_section(token, tx_id, tx.get("tags", []))
+
+            if st.session_state.get(f"editing_{tx_id}", False):
                 show_edit_form(token, tx)
 
 
-def show_edit_form(token: str, tx: dict):
-    """Display inline edit form for transaction."""
-    st.write("**Edit Transaction**")
+def show_tag_section(token: str, tx_id: str, current_tags: list):
+    """Inline tag chips + add input below each transaction card."""
+    tag_cols = st.columns([4, 1])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        category = st.text_input(
-            "Category", value=tx.get("category", ""), key=f"cat_{tx['id']}"
-        )
-        amount = st.number_input(
-            "Amount", value=tx["amount"], key=f"amt_{tx['id']}"
-        )
-
-    with col2:
-        merchant = st.text_input(
-            "Merchant", value=tx.get("merchant", ""), key=f"merch_{tx['id']}"
-        )
-        description = st.text_input(
-            "Description",
-            value=tx.get("description", ""),
-            key=f"desc_{tx['id']}",
-        )
-
-    col_save, col_cancel = st.columns(2)
-    with col_save:
-        if st.button("Save", key=f"save_{tx['id']}"):
-            update_transaction(
-                token,
-                tx["id"],
-                category=category,
-                merchant=merchant,
-                amount=amount,
-                description=description,
-            )
-
-    with col_cancel:
-        if st.button("Cancel", key=f"cancel_{tx['id']}"):
-            st.session_state[f"edit_{tx['id']}"] = False
-            st.rerun()
-
-
-def poll_emails(token: str):
-    """Poll for new emails."""
-    with st.spinner("Checking for new emails..."):
-        success, response = make_api_call(
-            "POST", ENDPOINTS["poll_email"], token=token
-        )
-
-    if success:
-        new_count = response.get("new_transactions", 0)
-        if new_count > 0:
-            st.success(f"✓ Found {new_count} new transaction(s)")
-            st.session_state["page_num"] = 1  # Reset to first page
-            st.rerun()
+    with tag_cols[0]:
+        if current_tags:
+            cols = st.columns(min(len(current_tags), 6))
+            for i, tag in enumerate(current_tags):
+                with cols[i % len(cols)]:
+                    if st.button(f"× {tag}", key=f"rmtag_{tx_id}_{tag}", use_container_width=True):
+                        put_tags(token, tx_id, [t for t in current_tags if t != tag])
         else:
-            st.info("No new transactions")
-    else:
-        st.error(f"Failed to check emails: {response}")
+            st.caption("no tags")
+
+    with tag_cols[1]:
+        new_tag = st.text_input(
+            "tag",
+            key=f"tag_input_{tx_id}",
+            label_visibility="collapsed",
+            placeholder="add tag…",
+        )
+        if st.button("＋", key=f"tag_add_{tx_id}", use_container_width=True) and new_tag.strip():
+            put_tags(token, tx_id, current_tags + [new_tag.strip().lower()])
 
 
-def update_transaction(
-    token: str, tx_id: int, category: str, merchant: str, amount: float, description: str
-):
-    """Update transaction."""
+def put_tags(token: str, tx_id: str, tags: list):
     success, response = make_api_call(
-        "PATCH",
-        f"{ENDPOINTS['update_transaction']}/{tx_id}",
-        data={
-            "category": category,
-            "merchant": merchant,
-            "amount": amount,
-            "description": description,
-        },
+        "PUT",
+        f"{ENDPOINTS['transaction_tags']}/{tx_id}/tags",
+        data={"tags": tags},
         token=token,
     )
-
     if success:
-        st.success("✓ Transaction updated")
-        st.session_state[f"edit_{tx_id}"] = False
         st.rerun()
     else:
-        st.error(f"Failed to update: {response}")
+        st.error(f"Failed to update tags: {response}")
 
 
-def approve_transaction(token: str, tx_id: int):
-    """Approve transaction."""
+def show_edit_form(token: str, tx: dict):
+    tx_id = tx["id"]
+    st.markdown("**Edit Transaction**")
+    c1, c2 = st.columns(2)
+    with c1:
+        merchant = st.text_input("Merchant", value=tx.get("merchant", ""), key=f"e_merch_{tx_id}")
+        amount = st.number_input("Amount", value=float(tx["amount"]), key=f"e_amt_{tx_id}")
+    with c2:
+        description = st.text_input("Description", value=tx.get("description") or "", key=f"e_desc_{tx_id}")
+
+    c_save, c_cancel = st.columns(2)
+    with c_save:
+        if st.button("Save", key=f"save_{tx_id}"):
+            update_transaction(token, tx_id, merchant=merchant, amount=amount, description=description)
+    with c_cancel:
+        if st.button("Cancel", key=f"cancel_{tx_id}"):
+            st.session_state[f"editing_{tx_id}"] = False
+            st.rerun()
+
+
+def save_and_approve(token: str, tx_id: str, owner: str, category: str):
+    """Patch owner+category then approve."""
+    data = {}
+    if owner != "—":
+        data["owner"] = owner
+    if category != "—":
+        data["category"] = category
+
+    if data:
+        make_api_call(
+            "PATCH",
+            f"{ENDPOINTS['update_transaction']}/{tx_id}",
+            data=data,
+            token=token,
+        )
+
     success, response = make_api_call(
         "POST",
         f"{ENDPOINTS['approve_transaction']}/{tx_id}/approve",
         token=token,
     )
-
     if success:
         st.success("✓ Approved")
         st.rerun()
@@ -308,14 +296,42 @@ def approve_transaction(token: str, tx_id: int):
         st.error(f"Failed to approve: {response}")
 
 
-def reject_transaction(token: str, tx_id: int):
-    """Reject transaction."""
+def poll_emails(token: str):
+    with st.spinner("Checking for new emails..."):
+        success, response = make_api_call("POST", ENDPOINTS["poll_email"], token=token)
+    if success:
+        new_count = response.get("new_transactions", 0)
+        if new_count > 0:
+            st.success(f"✓ Found {new_count} new transaction(s)")
+            st.session_state["page_num"] = 1
+            st.rerun()
+        else:
+            st.info("No new transactions")
+    else:
+        st.error(f"Failed to check emails: {response}")
+
+
+def update_transaction(token: str, tx_id: str, merchant: str, amount: float, description: str):
+    success, response = make_api_call(
+        "PATCH",
+        f"{ENDPOINTS['update_transaction']}/{tx_id}",
+        data={"merchant": merchant, "amount": amount, "description": description},
+        token=token,
+    )
+    if success:
+        st.success("✓ Updated")
+        st.session_state[f"editing_{tx_id}"] = False
+        st.rerun()
+    else:
+        st.error(f"Failed to update: {response}")
+
+
+def reject_transaction(token: str, tx_id: str):
     success, response = make_api_call(
         "POST",
         f"{ENDPOINTS['reject_transaction']}/{tx_id}/reject",
         token=token,
     )
-
     if success:
         st.success("✓ Rejected")
         st.rerun()

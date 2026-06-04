@@ -25,6 +25,18 @@ CREATE TABLE IF NOT EXISTS documents (
     FOREIGN KEY (transaction_id) REFERENCES transactions(id)
 );
 
+CREATE TABLE IF NOT EXISTS tags (
+    name TEXT PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS transaction_tags (
+    transaction_id TEXT NOT NULL,
+    tag_name       TEXT NOT NULL,
+    PRIMARY KEY (transaction_id, tag_name),
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_name) REFERENCES tags(name)
+);
+
 CREATE TABLE IF NOT EXISTS gmail_poll_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

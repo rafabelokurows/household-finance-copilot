@@ -35,6 +35,10 @@ def make_api_call(
             resp = requests.patch(
                 endpoint, json=data, headers=headers, timeout=API_TIMEOUT
             )
+        elif method.upper() == "PUT":
+            resp = requests.put(
+                endpoint, json=data, headers=headers, timeout=API_TIMEOUT
+            )
         else:
             return False, "Unsupported HTTP method"
 

@@ -65,6 +65,11 @@ def show_browse(token: str):
 
     st.markdown("---")
 
+    st.subheader("Spending by Tag")
+    show_tag_chart(token, date_from, date_to)
+
+    st.markdown("---")
+
     # Transaction table
     st.subheader("Transactions")
     show_transaction_table(token, date_from, date_to, category)
@@ -135,6 +140,43 @@ def show_trends_chart(token: str):
         height=400,
     )
 
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def show_tag_chart(token: str, date_from, date_to):
+    """Horizontal bar chart of spending per tag."""
+    success, response = make_api_call(
+        "GET",
+        ENDPOINTS["analytics_by_tag"],
+        token=token,
+        params={
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+        },
+    )
+
+    if not success:
+        st.error(f"Failed to load tag data: {response}")
+        return
+
+    tag_data = response.get("tags", [])
+
+    if not tag_data:
+        st.info("No tagged transactions for this period")
+        return
+
+    names = [t["name"] for t in tag_data]
+    amounts = [t["amount"] for t in tag_data]
+
+    fig = go.Figure(
+        data=[go.Bar(x=amounts, y=names, orientation="h", text=[f"€{a:,.2f}" for a in amounts], textposition="outside")]
+    )
+    fig.update_layout(
+        height=max(200, len(names) * 40),
+        xaxis_title="Total (€)",
+        yaxis={"autorange": "reversed"},
+        margin={"l": 0, "r": 80, "t": 10, "b": 40},
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 

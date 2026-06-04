@@ -15,6 +15,24 @@ def _row_to_dict(row) -> dict:
     return dict(zip(cols, row))
 
 
+def _attach_tags(conn, tx_dicts: list[dict]) -> list[dict]:
+    """Add tags list to each transaction dict."""
+    if not tx_dicts:
+        return tx_dicts
+    ids = [tx["id"] for tx in tx_dicts]
+    placeholders = ",".join("?" * len(ids))
+    rows = conn.execute(
+        f"SELECT transaction_id, tag_name FROM transaction_tags WHERE transaction_id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    tags_by_tx: dict[str, list[str]] = {}
+    for tx_id, tag_name in rows:
+        tags_by_tx.setdefault(tx_id, []).append(tag_name)
+    for tx in tx_dicts:
+        tx["tags"] = tags_by_tx.get(tx["id"], [])
+    return tx_dicts
+
+
 # IMPORTANT: Place specific routes BEFORE /{tx_id} so they match first!
 
 @router.get("/pending")
@@ -51,7 +69,7 @@ def list_pending_transactions(
     ).fetchall()
 
     return {
-        "transactions": [_row_to_dict(r) for r in rows],
+        "transactions": _attach_tags(conn, [_row_to_dict(r) for r in rows]),
         "total": total,
         "page": page,
         "limit": limit,
@@ -95,7 +113,7 @@ def list_processed_transactions(
     ).fetchall()
 
     return {
-        "transactions": [_row_to_dict(r) for r in rows],
+        "transactions": _attach_tags(conn, [_row_to_dict(r) for r in rows]),
     }
 
 
@@ -178,7 +196,7 @@ def list_transactions(
         f"SELECT * FROM transactions {where} ORDER BY date DESC, created_at DESC LIMIT ? OFFSET ?",
         params + [limit, offset]
     ).fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return _attach_tags(conn, [_row_to_dict(r) for r in rows])
 
 
 @router.get("/{tx_id}")

@@ -44,6 +44,41 @@ def analytics_by_category(
     return {"categories": categories}
 
 
+@router.get("/by_tag")
+def analytics_by_tag(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+):
+    """Get spending aggregated by tag."""
+    conn = get_connection()
+
+    conditions = ["t.status = 'approved'"]
+    params = []
+
+    if date_from:
+        conditions.append("t.date >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("t.date <= ?")
+        params.append(date_to)
+
+    where = "WHERE " + " AND ".join(conditions)
+
+    rows = conn.execute(
+        f"""
+        SELECT tt.tag_name, SUM(t.amount) as total
+        FROM transaction_tags tt
+        JOIN transactions t ON t.id = tt.transaction_id
+        {where}
+        GROUP BY tt.tag_name
+        ORDER BY total DESC
+        """,
+        params,
+    ).fetchall()
+
+    return {"tags": [{"name": row[0], "amount": float(row[1])} for row in rows]}
+
+
 @router.get("/trends")
 def analytics_trends(
     weeks: int = Query(12, ge=1, le=52),

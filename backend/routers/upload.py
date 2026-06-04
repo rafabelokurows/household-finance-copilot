@@ -5,6 +5,7 @@ from fastapi import APIRouter, UploadFile, Form, HTTPException
 
 from ..db.client import get_connection, generate_id
 from ..ingestion.extractor import extract_from_bytes, get_mime_type
+from ..ingestion.category_rules import guess_category
 from ..models import Owner, Status
 
 router = APIRouter()
@@ -49,7 +50,7 @@ async def upload_file(
                     confidence, status, source_file, bank, raw_json, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 [tx_id, tx.date, tx.merchant, float(tx.amount), tx.currency.value,
-                 None, owner_enum.value if owner_enum else None,
+                 guess_category(tx.merchant), owner_enum.value if owner_enum else None,
                  tx.confidence, status.value, file.filename,
                  result.bank_detected, None, datetime.now(timezone.utc)],
             )

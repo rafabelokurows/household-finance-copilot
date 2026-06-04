@@ -98,6 +98,7 @@ def _mark_processed(conn, msg_id: str) -> None:
 def _poll_once(service, last_poll_time: datetime) -> None:
     from ..db.client import generate_id, get_connection
     from ..ingestion.extractor import extract_from_bytes
+    from ..ingestion.category_rules import guess_category
     from ..models import Status
 
     conn = get_connection()
@@ -172,7 +173,7 @@ def _poll_once(service, last_poll_time: datetime) -> None:
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     [
                         tx_id, tx.date, tx.merchant, float(tx.amount),
-                        tx.currency.value, None, None, tx.confidence,
+                        tx.currency.value, guess_category(tx.merchant), None, tx.confidence,
                         status.value, filename, result.bank_detected,
                         None, datetime.now(timezone.utc),
                     ],

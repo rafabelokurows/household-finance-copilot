@@ -45,4 +45,18 @@ CREATE TABLE IF NOT EXISTS gmail_poll_state (
 CREATE TABLE IF NOT EXISTS gmail_processed_messages (
     message_id   TEXT PRIMARY KEY,
     processed_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS processed_attachments (
+    content_hash TEXT PRIMARY KEY,
+    filename     TEXT NOT NULL,
+    processed_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS category_rules (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    keyword  TEXT NOT NULL,
+    priority INTEGER NOT NULL,
+    UNIQUE(category, keyword)
 )

@@ -26,11 +26,30 @@ def get_connection() -> sqlite3.Connection:
 
 def _initialize_schema(conn: sqlite3.Connection) -> None:
     schema_sql = _SCHEMA_PATH.read_text()
-    # SQLite doesn't support multiple statements in one execute, so split them
     for statement in schema_sql.split(';'):
         if statement.strip():
             conn.execute(statement)
     conn.commit()
+    _seed_category_rules(conn)
+
+
+def _seed_category_rules(conn: sqlite3.Connection) -> None:
+    """Seed category_rules table from hardcoded RULES if table is empty."""
+    count = conn.execute("SELECT COUNT(*) FROM category_rules").fetchone()[0]
+    if count > 0:
+        return
+    from ..ingestion.category_rules import RULES
+    priority = 0
+    for keywords, category in RULES:
+        for keyword in keywords:
+            conn.execute(
+                "INSERT OR IGNORE INTO category_rules (category, keyword, priority) VALUES (?, ?, ?)",
+                [category, keyword, priority],
+            )
+            priority += 1
+    conn.commit()
+    import logging
+    logging.getLogger(__name__).info("Seeded %d category rules", priority)
 
 
 def generate_id() -> str:

@@ -21,15 +21,25 @@ ENDPOINTS = {
     "transaction_tags": f"{API_BASE_URL}/api/transactions",
     "all_tags": f"{API_BASE_URL}/api/tags",
     "analytics_by_tag": f"{API_BASE_URL}/api/analytics/by_tag",
+    "analytics_by_month": f"{API_BASE_URL}/api/analytics/by_month",
+    "analytics_by_owner": f"{API_BASE_URL}/api/analytics/by_owner",
+    "analytics_category_trends": f"{API_BASE_URL}/api/analytics/category_trends",
+    "statements": f"{API_BASE_URL}/api/transactions/statements",
+    "category_rules": f"{API_BASE_URL}/api/categories/rules",
 }
 
 CATEGORIES = [
     "Groceries",
-    "Dining",
-    "Transport",
+    "Restaurants",
+    "Transportation",
     "Utilities",
+    "Shopping",
     "Entertainment",
     "Healthcare",
-    "Shopping",
+    "Travel",
+    "Insurance",
+    "Salary",
+    "Bonus",
+    "Investments",
     "Other",
 ]

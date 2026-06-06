@@ -112,3 +112,69 @@ def analytics_trends(
         })
 
     return {"weeks": weeks_data}
+
+
+@router.get("/by_month")
+def analytics_by_month(months: int = Query(12, ge=1, le=36)):
+    """Get monthly spending totals for the last N months."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT strftime('%Y-%m', date) AS month, SUM(amount) AS total
+        FROM transactions
+        WHERE status = 'approved'
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT ?
+        """,
+        [months],
+    ).fetchall()
+    result = [{"month": r[0], "total": float(r[1])} for r in rows]
+    result.reverse()
+    return {"months": result}
+
+
+@router.get("/by_owner")
+def analytics_by_owner(
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+):
+    """Get spending totals broken down by owner."""
+    conn = get_connection()
+    conditions = ["status = 'approved'", "owner IS NOT NULL"]
+    params = []
+    if date_from:
+        conditions.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("date <= ?")
+        params.append(date_to)
+    where = "WHERE " + " AND ".join(conditions)
+    rows = conn.execute(
+        f"SELECT owner, SUM(amount) AS total FROM transactions {where} GROUP BY owner ORDER BY total DESC",
+        params,
+    ).fetchall()
+    return {"owners": [{"owner": r[0], "total": float(r[1])} for r in rows]}
+
+
+@router.get("/category_trends")
+def analytics_category_trends(months: int = Query(6, ge=1, le=24)):
+    """Get monthly spending per category for the last N months."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT strftime('%Y-%m', date) AS month, category, SUM(amount) AS total
+        FROM transactions
+        WHERE status = 'approved' AND category IS NOT NULL
+        GROUP BY month, category
+        ORDER BY month ASC
+        """,
+    ).fetchall()
+    # Filter to last N months
+    all_months = sorted({r[0] for r in rows})
+    keep_months = set(all_months[-months:])
+    trends = [
+        {"month": r[0], "category": r[1], "total": float(r[2])}
+        for r in rows if r[0] in keep_months
+    ]
+    return {"trends": trends}

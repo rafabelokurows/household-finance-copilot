@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option 3 — Soft Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #EEECEA;
+    --bg2: #E6E3DF;
+    --bg3: #DEDAD4;
+    --surface: #F4F2EF;
+    --ink: #1A1816;
+    --ink-mid: #4A4540;
+    --ink-muted: #8A847A;
+    --ink-faint: #C4BEB5;
+    --green: #00A878;
+    --green-dim: #007A57;
+    --green-bg: rgba(0,168,120,0.08);
+    --amber: #D4800A;
+    --amber-bg: rgba(212,128,10,0.08);
+    --red: #CC3333;
+    --red-bg: rgba(204,51,51,0.08);
+    --blue: #2B6CB0;
+    --cursor: #00A878;
+    --mono: 'JetBrains Mono', monospace;
+    --scanline: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.008) 2px,
+      rgba(0,0,0,0.008) 4px
+    );
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    min-height: 100vh;
+    background-image: var(--scanline);
+  }
+
+  /* STATUS BAR / NAV */
+  .statusbar {
+    background: var(--ink);
+    color: var(--bg);
+    display: flex;
+    align-items: stretch;
+    height: 36px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 2px solid var(--green);
+  }
+
+  .sb-brand {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 14px;
+    background: var(--green);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border-right: 2px solid var(--green-dim);
+    white-space: nowrap;
+  }
+
+  .sb-brand .prompt-sym { margin-right: 6px; color: var(--ink); opacity: 0.6; }
+
+  .sb-tabs {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .sb-tab {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    color: rgba(238,236,234,0.45);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    transition: all 0.1s;
+    user-select: none;
+  }
+
+  .sb-tab:hover { color: rgba(238,236,234,0.8); background: rgba(255,255,255,0.04); }
+
+  .sb-tab.active {
+    color: var(--bg);
+    background: rgba(0,168,120,0.15);
+    border-bottom: 2px solid var(--green);
+    margin-bottom: -2px;
+  }
+
+  .sb-tab .tab-num {
+    color: var(--green);
+    margin-right: 5px;
+    font-weight: 700;
+  }
+
+  .sb-tab .tab-badge {
+    margin-left: 6px;
+    background: var(--amber);
+    color: var(--ink);
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  .sb-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    padding-right: 14px;
+    gap: 16px;
+  }
+
+  .sb-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: rgba(238,236,234,0.4);
+  }
+
+  .sb-indicator .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .sb-user {
+    font-size: 10px;
+    color: rgba(238,236,234,0.55);
+  }
+
+  /* COMMAND LINE */
+  .cmdline {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--ink-faint);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cmd-prompt {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .cmd-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    caret-color: var(--green);
+  }
+
+  .cmd-hint {
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+
+  .cmd-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filter-token {
+    background: var(--green-bg);
+    border: 1px solid rgba(0,168,120,0.25);
+    color: var(--green-dim);
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 2px;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .filter-token .fkey { color: var(--amber); }
+  .filter-token .fx { color: var(--ink-faint); cursor: pointer; margin-left: 4px; }
+  .filter-token .fx:hover { color: var(--red); }
+
+  /* LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    min-height: calc(100vh - 80px);
+  }
+
+  /* MAIN PANE */
+  .main-pane {
+    border-right: 1px solid var(--ink-faint);
+    overflow: hidden;
+  }
+
+  /* PANE HEADER */
+  .pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--ink-faint);
+    background: var(--surface);
+  }
+
+  .pane-title {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .pane-title .count {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .pane-actions { display: flex; gap: 6px; }
+
+  .btn-t {
+    background: transparent;
+    border: 1px solid var(--ink-faint);
+    color: var(--ink-mid);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.1s;
+    text-transform: uppercase;
+    border-radius: 2px;
+  }
+  .btn-t:hover { border-color: var(--green); color: var(--green); }
+
+  .btn-t-green {
+    background: var(--green);
+    border: 1px solid var(--green);
+    color: var(--ink);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    font-weight: 700;
+    border-radius: 2px;
+    text-transform: uppercase;
+    transition: all 0.1s;
+  }
+  .btn-t-green:hover { background: var(--green-dim); border-color: var(--green-dim); }
+
+  /* TRANSACTION LIST (ls -la style) */
+  .tx-list {
+    font-size: 11.5px;
+  }
+
+  .tx-header {
+    display: grid;
+    grid-template-columns: 80px 30px 200px 130px 100px 120px auto;
+    gap: 0;
+    padding: 6px 20px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--ink-faint);
+    color: var(--ink-muted);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .tx-header > div { padding-right: 12px; }
+  .tx-header .th-amount { text-align: right; }
+
+  .tx-row {
+    display: grid;
+    grid-template-columns: 80px 30px 200px 130px 100px 120px auto;
+    gap: 0;
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(196,190,181,0.35);
+    align-items: center;
+    min-height: 38px;
+    cursor: pointer;
+    transition: background 0.08s;
+  }
+
+  .tx-row:hover { background: var(--bg2); }
+  .tx-row.tx-selected { background: var(--green-bg); }
+  .tx-row.tx-income { }
+
+  .tx-row > div { padding: 9px 12px 9px 0; overflow: hidden; }
+
+  .tx-date { color: var(--ink-muted); font-size: 10px; white-space: nowrap; }
+  .tx-indicator { font-size: 10px; }
+  .tx-indicator.debit { color: var(--red); }
+  .tx-indicator.credit { color: var(--green); font-weight: 700; }
+  .tx-merchant { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+  .tx-merchant .bank { font-size: 9px; color: var(--ink-faint); margin-left: 6px; }
+  .tx-merchant .tag { font-size: 8px; background: var(--ink); color: var(--bg); padding: 1px 4px; border-radius: 1px; margin-left: 4px; }
+
+  .tx-cat { }
+  .cat-t {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  .ct-groceries { background: rgba(0,168,120,0.1); color: var(--green-dim); }
+  .ct-restaurants { background: var(--amber-bg); color: var(--amber); }
+  .ct-transport { background: rgba(43,108,176,0.1); color: var(--blue); }
+  .ct-utilities { background: rgba(107,70,144,0.1); color: #6B4690; }
+  .ct-shopping { background: rgba(180,120,40,0.1); color: #8B5E10; }
+  .ct-health { background: var(--red-bg); color: var(--red); }
+  .ct-salary { background: rgba(0,168,120,0.15); color: var(--green-dim); font-weight: 700; }
+
+  .tx-owner { color: var(--ink-muted); font-size: 10px; }
+  .tx-amount { text-align: right; font-weight: 500; white-space: nowrap; }
+  .tx-amount.debit { color: var(--ink); }
+  .tx-amount.credit { color: var(--green); font-weight: 700; }
+
+  .tx-actions { text-align: right; }
+  .tact {
+    background: none; border: none; cursor: pointer;
+    color: var(--ink-faint); font-family: var(--mono);
+    font-size: 10px; padding: 2px 4px;
+    transition: color 0.1s;
+  }
+  .tact:hover { color: var(--green); }
+
+  /* STATUS LINE */
+  .status-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px;
+    border-top: 1px solid var(--ink-faint);
+    background: var(--bg3);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+  }
+
+  .status-line .sl-left { display: flex; gap: 18px; }
+  .status-line .sl-sum { color: var(--ink); font-weight: 700; }
+  .status-line .sl-good { color: var(--green); }
+
+  .pager-t {
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .pager-t button {
+    background: none; border: 1px solid var(--ink-faint);
+    color: var(--ink-mid); cursor: pointer;
+    width: 22px; height: 22px;
+    font-family: var(--mono); font-size: 10px;
+    transition: all 0.1s; border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pager-t button:hover { border-color: var(--green); color: var(--green); }
+  .pager-t .pg-info { font-size: 9px; color: var(--ink-muted); padding: 0 8px; letter-spacing: 0.06em; }
+
+  /* RIGHT PANEL */
+  .right-panel {
+    padding: 0;
+    overflow-y: auto;
+  }
+
+  .panel-section {
+    border-bottom: 1px solid var(--ink-faint);
+  }
+
+  .panel-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--surface);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .panel-section-header .arrow { color: var(--green); transition: transform 0.1s; }
+
+  .panel-body { padding: 12px 16px; }
+
+  /* KPI grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--ink-faint);
+    border: 1px solid var(--ink-faint);
+    margin-bottom: 0;
+  }
+
+  .kpi-cell {
+    background: var(--surface);
+    padding: 10px 12px;
+  }
+
+  .kpi-v {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .kpi-v.green { color: var(--green); }
+  .kpi-v.amber { color: var(--amber); }
+
+  .kpi-l {
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 3px;
+  }
+
+  /* Horizontal bar chart */
+  .hbar-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .hbar-item { }
+
+  .hbar-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    margin-bottom: 3px;
+    color: var(--ink-mid);
+  }
+
+  .hbar-meta .hbar-val { color: var(--ink); font-weight: 700; }
+
+  .hbar-track {
+    height: 8px;
+    background: var(--bg3);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .hbar-fill { height: 100%; transition: width 0.4s; }
+
+  .hf-1 { background: var(--green); }
+  .hf-2 { background: var(--amber); opacity: 0.7; }
+  .hf-3 { background: var(--ink-muted); opacity: 0.5; }
+  .hf-4 { background: var(--blue); opacity: 0.5; }
+  .hf-5 { background: var(--red); opacity: 0.4; }
+
+  /* Trend SVG */
+  .trend-svg {
+    width: 100%;
+    height: 60px;
+    margin-top: 4px;
+  }
+
+  /* Owner list */
+  .owner-list { display: flex; flex-direction: column; gap: 0; }
+
+  .owner-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(196,190,181,0.4);
+    font-size: 11px;
+  }
+
+  .owner-item:last-child { border-bottom: none; }
+  .owner-item .oi-name { color: var(--ink-mid); }
+  .owner-item .oi-pct { color: var(--ink-faint); font-size: 9px; margin-left: 4px; }
+  .owner-item .oi-val { font-weight: 700; }
+  .owner-item .oi-bar { height: 3px; margin-top: 3px; border-radius: 1px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--ink-faint); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div class="sb-brand">
+    <span class="prompt-sym">$</span> hf-copilot
+  </div>
+  <div class="sb-tabs">
+    <div class="sb-tab active">
+      <span class="tab-num">1</span> browse
+    </div>
+    <div class="sb-tab">
+      <span class="tab-num">2</span> review
+      <span class="tab-badge">4</span>
+    </div>
+    <div class="sb-tab">
+      <span class="tab-num">3</span> statements
+    </div>
+    <div class="sb-tab">
+      <span class="tab-num">4</span> rules
+    </div>
+  </div>
+  <div class="sb-right">
+    <div class="sb-indicator">
+      <span class="dot"></span>
+      connected
+    </div>
+    <div class="sb-user">rafael@primetag</div>
+  </div>
+</div>
+
+<!-- COMMAND LINE -->
+<div class="cmdline">
+  <span class="cmd-prompt">›</span>
+  <input class="cmd-input" type="text" placeholder="filter: from:2025-03-01 to:2025-06-06 cat:all ...">
+  <div class="cmd-filters">
+    <div class="filter-token"><span class="fkey">from:</span>2025-03-01 <span class="fx">×</span></div>
+    <div class="filter-token"><span class="fkey">to:</span>2025-06-06 <span class="fx">×</span></div>
+    <div class="filter-token"><span class="fkey">cat:</span>all <span class="fx">×</span></div>
+  </div>
+  <span class="cmd-hint">ESC to clear · ? for help</span>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- MAIN PANE -->
+  <div class="main-pane">
+    <div class="pane-header">
+      <div class="pane-title">
+        transactions
+        <span class="count">47</span>
+        results
+      </div>
+      <div class="pane-actions">
+        <button class="btn-t">sort: date ↓</button>
+        <button class="btn-t">↓ export</button>
+        <button class="btn-t-green">+ upload</button>
+      </div>
+    </div>
+
+    <!-- TX TABLE -->
+    <div class="tx-list">
+      <div class="tx-header">
+        <div>date</div>
+        <div></div>
+        <div>merchant</div>
+        <div>category</div>
+        <div>owner</div>
+        <div class="th-amount">amount</div>
+        <div></div>
+      </div>
+
+      <div class="tx-row tx-selected">
+        <div class="tx-date">Jun 05</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Continente Online <span class="bank">mbcp</span> <span class="tag">weekly shop</span></div>
+        <div class="tx-cat"><span class="cat-t ct-groceries">groceries</span></div>
+        <div class="tx-owner">shared</div>
+        <div class="tx-amount debit">€89.40</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">Jun 04</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Zara Home <span class="bank">revolut</span></div>
+        <div class="tx-cat"><span class="cat-t ct-shopping">shopping</span></div>
+        <div class="tx-owner">heloisa</div>
+        <div class="tx-amount debit">€134.99</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">Jun 03</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">NOS Comunicações <span class="bank">caixa</span></div>
+        <div class="tx-cat"><span class="cat-t ct-utilities">utilities</span></div>
+        <div class="tx-owner">shared</div>
+        <div class="tx-amount debit">€45.00</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row tx-income">
+        <div class="tx-date">Jun 02</div>
+        <div class="tx-indicator credit">+</div>
+        <div class="tx-merchant">Salary — Primetag <span class="bank">mbcp</span></div>
+        <div class="tx-cat"><span class="cat-t ct-salary">salary</span></div>
+        <div class="tx-owner">rafael</div>
+        <div class="tx-amount credit">€2,800.00</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">Jun 01</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Tasca do Chico <span class="bank">revolut</span></div>
+        <div class="tx-cat"><span class="cat-t ct-restaurants">restaurants</span></div>
+        <div class="tx-owner">shared</div>
+        <div class="tx-amount debit">€67.20</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">May 31</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Farmácia Wellcare <span class="bank">caixa</span></div>
+        <div class="tx-cat"><span class="cat-t ct-health">healthcare</span></div>
+        <div class="tx-owner">heloisa</div>
+        <div class="tx-amount debit">€28.50</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">May 30</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Uber <span class="bank">revolut</span> <span class="tag">commute</span></div>
+        <div class="tx-cat"><span class="cat-t ct-transport">transport</span></div>
+        <div class="tx-owner">rafael</div>
+        <div class="tx-amount debit">€12.40</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">May 29</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Mercadona <span class="bank">mbcp</span></div>
+        <div class="tx-cat"><span class="cat-t ct-groceries">groceries</span></div>
+        <div class="tx-owner">shared</div>
+        <div class="tx-amount debit">€54.10</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">May 28</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">Netflix <span class="bank">revolut</span></div>
+        <div class="tx-cat"><span class="cat-t ct-utilities">utilities</span></div>
+        <div class="tx-owner">shared</div>
+        <div class="tx-amount debit">€15.99</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+
+      <div class="tx-row">
+        <div class="tx-date">May 27</div>
+        <div class="tx-indicator debit">−</div>
+        <div class="tx-merchant">H&amp;M <span class="bank">caixa</span></div>
+        <div class="tx-cat"><span class="cat-t ct-shopping">shopping</span></div>
+        <div class="tx-owner">heloisa</div>
+        <div class="tx-amount debit">€79.95</div>
+        <div class="tx-actions"><button class="tact">edit</button> <button class="tact">⋯</button></div>
+      </div>
+    </div>
+
+    <!-- STATUS LINE -->
+    <div class="status-line">
+      <div class="sl-left">
+        <span>47 transactions</span>
+        <span>spend: <strong class="sl-sum">€4,218.90</strong></span>
+        <span>income: <strong class="sl-good">€2,800.00</strong></span>
+        <span>net: <strong style="color:var(--amber)">−€1,418.90</strong></span>
+      </div>
+      <div class="pager-t">
+        <button>‹</button>
+        <span class="pg-info">1 / 5</span>
+        <button>›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+
+    <!-- KPIs -->
+    <div class="panel-section">
+      <div class="kpi-grid">
+        <div class="kpi-cell">
+          <div class="kpi-v amber">€4,218</div>
+          <div class="kpi-l">total spend</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-v green">€2,800</div>
+          <div class="kpi-l">income</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-v">47</div>
+          <div class="kpi-l">transactions</div>
+        </div>
+        <div class="kpi-cell">
+          <div class="kpi-v" style="color:var(--red)">−€1,418</div>
+          <div class="kpi-l">net flow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="panel-section">
+      <div class="panel-section-header">
+        categories <span class="arrow">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="hbar-list">
+          <div class="hbar-item">
+            <div class="hbar-meta"><span>groceries</span><span class="hbar-val">€1,434</span></div>
+            <div class="hbar-track"><div class="hbar-fill hf-1" style="width:34%"></div></div>
+          </div>
+          <div class="hbar-item">
+            <div class="hbar-meta"><span>restaurants</span><span class="hbar-val">€886</span></div>
+            <div class="hbar-track"><div class="hbar-fill hf-2" style="width:21%"></div></div>
+          </div>
+          <div class="hbar-item">
+            <div class="hbar-meta"><span>shopping</span><span class="hbar-val">€633</span></div>
+            <div class="hbar-track"><div class="hbar-fill hf-3" style="width:15%"></div></div>
+          </div>
+          <div class="hbar-item">
+            <div class="hbar-meta"><span>transport</span><span class="hbar-val">€506</span></div>
+            <div class="hbar-track"><div class="hbar-fill hf-4" style="width:12%"></div></div>
+          </div>
+          <div class="hbar-item">
+            <div class="hbar-meta"><span>utilities</span><span class="hbar-val">€380</span></div>
+            <div class="hbar-track"><div class="hbar-fill hf-5" style="width:9%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TREND -->
+    <div class="panel-section">
+      <div class="panel-section-header">
+        weekly trend <span class="arrow">▾</span>
+      </div>
+      <div class="panel-body" style="padding-bottom:8px;">
+        <svg class="trend-svg" viewBox="0 0 248 60" preserveAspectRatio="none">
+          <!-- Grid -->
+          <line x1="0" y1="15" x2="248" y2="15" stroke="#C4BEB5" stroke-width="0.5" stroke-dasharray="2,4"/>
+          <line x1="0" y1="35" x2="248" y2="35" stroke="#C4BEB5" stroke-width="0.5" stroke-dasharray="2,4"/>
+          <!-- Step line (terminal style) -->
+          <polyline points="0,50 35,50 35,42 70,42 70,45 105,45 105,28 140,28 140,34 175,34 175,20 210,20 210,25 248,14"
+            fill="none" stroke="#00A878" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter"/>
+          <!-- Fill -->
+          <polyline points="0,50 35,50 35,42 70,42 70,45 105,45 105,28 140,28 140,34 175,34 175,20 210,20 210,25 248,14 248,60 0,60"
+            fill="#00A878" opacity="0.08"/>
+          <!-- Current dot -->
+          <rect x="244" y="10" width="4" height="4" fill="#00A878"/>
+        </svg>
+        <div style="font-size:9px;color:var(--ink-faint);letter-spacing:0.04em;">last 8 weeks</div>
+      </div>
+    </div>
+
+    <!-- OWNERS -->
+    <div class="panel-section">
+      <div class="panel-section-header">
+        by owner <span class="arrow">▾</span>
+      </div>
+      <div class="panel-body">
+        <div class="owner-list">
+          <div class="owner-item">
+            <div>
+              <div><span class="oi-name">rafael</span><span class="oi-pct"> 60%</span></div>
+              <div class="oi-bar" style="width:80px;background:var(--green)"></div>
+            </div>
+            <div class="oi-val">€2,531</div>
+          </div>
+          <div class="owner-item">
+            <div>
+              <div><span class="oi-name">heloisa</span><span class="oi-pct"> 25%</span></div>
+              <div class="oi-bar" style="width:34px;background:var(--amber)"></div>
+            </div>
+            <div class="oi-val">€1,055</div>
+          </div>
+          <div class="owner-item">
+            <div>
+              <div><span class="oi-name">shared</span><span class="oi-pct"> 15%</span></div>
+              <div class="oi-bar" style="width:20px;background:var(--ink-faint)"></div>
+            </div>
+            <div class="oi-val">€633</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

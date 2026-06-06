@@ -2,6 +2,8 @@ import streamlit as st
 from components.utils import login, logout, make_api_call
 from components.review_queue import show_review_queue
 from components.browse import show_browse
+from components.statements import show_statements
+from components.category_rules import show_category_rules
 from config import ENDPOINTS
 
 st.set_page_config(page_title="Household Finance Copilot", layout="wide")
@@ -70,15 +72,21 @@ def show_main_app():
     has_pending = ok and resp.get("total", 0) > 0
 
     if has_pending:
-        tab_review, tab_browse = st.tabs(["Review Queue", "Browse"])
+        tab_review, tab_browse, tab_statements, tab_rules = st.tabs(["Review Queue", "Browse", "Statements", "Rules"])
     else:
-        tab_browse, tab_review = st.tabs(["Browse", "Review Queue"])
+        tab_browse, tab_statements, tab_review, tab_rules = st.tabs(["Browse", "Statements", "Review Queue", "Rules"])
 
     with tab_review:
         show_review_queue(token)
 
     with tab_browse:
         show_browse(token)
+
+    with tab_statements:
+        show_statements(token)
+
+    with tab_rules:
+        show_category_rules(token)
 
 
 # Main logic

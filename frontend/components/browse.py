@@ -69,6 +69,17 @@ def show_browse(token: str):
 
     st.markdown("---")
 
+    with st.expander("📅 Monthly Spending", expanded=False):
+        show_monthly_chart(token)
+
+    with st.expander("👤 Spending by Owner", expanded=False):
+        show_owner_chart(token, date_from, date_to)
+
+    with st.expander("📊 Category Trends (month-over-month)", expanded=False):
+        show_category_trends_chart(token)
+
+    st.markdown("---")
+
     # Transaction table
     st.subheader("Transactions")
     show_transaction_table(token, date_from, date_to, category)
@@ -270,6 +281,81 @@ def show_browse_edit_form(token: str, tx: dict):
     if st.button("Cancel", key=f"b_cancel_{tx_id}"):
         st.session_state[f"b_editing_{tx_id}"] = False
         st.rerun()
+
+
+def show_monthly_chart(token: str):
+    success, response = make_api_call("GET", ENDPOINTS["analytics_by_month"], token=token, params={"months": 12})
+    if not success:
+        st.error(f"Failed to load monthly data: {response}")
+        return
+    data = response.get("months", [])
+    if not data:
+        st.info("No data yet")
+        return
+    months = [d["month"] for d in data]
+    totals = [d["total"] for d in data]
+    fig = go.Figure(data=[go.Bar(x=months, y=totals, text=[f"€{t:,.0f}" for t in totals], textposition="outside")])
+    fig.update_layout(xaxis_title="Month", yaxis_title="Total (€)", height=350, margin={"t": 20})
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def show_owner_chart(token: str, date_from, date_to):
+    success, response = make_api_call(
+        "GET", ENDPOINTS["analytics_by_owner"], token=token,
+        params={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+    )
+    if not success:
+        st.error(f"Failed to load owner data: {response}")
+        return
+    data = response.get("owners", [])
+    if not data:
+        st.info("No categorized owner data for this period")
+        return
+    owners = [d["owner"] for d in data]
+    totals = [d["total"] for d in data]
+    colors = {"Rafael": "#4C78A8", "Heloisa": "#E45756", "Shared": "#72B7B2"}
+    bar_colors = [colors.get(o, "#BAB0AC") for o in owners]
+    fig = go.Figure(data=[go.Bar(
+        x=owners, y=totals,
+        marker_color=bar_colors,
+        text=[f"€{t:,.0f}" for t in totals], textposition="outside",
+    )])
+    fig.update_layout(yaxis_title="Total (€)", height=300, margin={"t": 20})
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def show_category_trends_chart(token: str):
+    success, response = make_api_call("GET", ENDPOINTS["analytics_category_trends"], token=token, params={"months": 6})
+    if not success:
+        st.error(f"Failed to load category trends: {response}")
+        return
+    trends = response.get("trends", [])
+    if not trends:
+        st.info("No data yet")
+        return
+    # Pivot: category → {month: total}
+    from collections import defaultdict
+    cat_month: dict[str, dict[str, float]] = defaultdict(dict)
+    all_months: set[str] = set()
+    for row in trends:
+        cat_month[row["category"]][row["month"]] = row["total"]
+        all_months.add(row["month"])
+    months_sorted = sorted(all_months)
+    # Top 6 categories by total spend
+    cat_totals = {cat: sum(mv.values()) for cat, mv in cat_month.items()}
+    top_cats = sorted(cat_totals, key=cat_totals.get, reverse=True)[:6]
+    fig = go.Figure()
+    for cat in top_cats:
+        fig.add_trace(go.Bar(
+            name=cat,
+            x=months_sorted,
+            y=[cat_month[cat].get(m, 0) for m in months_sorted],
+        ))
+    fig.update_layout(
+        barmode="stack", xaxis_title="Month", yaxis_title="Total (€)",
+        height=380, legend={"orientation": "h", "y": -0.2}, margin={"t": 20},
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def export_csv(token: str, date_from, date_to):

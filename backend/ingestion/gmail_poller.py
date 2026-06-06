@@ -1,11 +1,14 @@
 """Gmail API poller — polls for bank statement emails with attachments."""
 import base64
+import hashlib
 import logging
 import os
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+_poll_lock = threading.Lock()
 
 from dotenv import load_dotenv
 
@@ -18,6 +21,7 @@ TOKEN_PATH = os.getenv("GMAIL_TOKEN_PATH", "token.json")
 POLL_INTERVAL = int(os.getenv("GMAIL_POLL_INTERVAL", "300"))
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.90"))
+RESCAN_FROM = os.getenv("GMAIL_RESCAN_FROM")  # e.g. "2026-01-01" — overrides stored last_poll floor
 
 ATTACHMENT_MIME_TYPES = {
     "application/pdf",
@@ -66,6 +70,14 @@ def _get_parts(payload):
 
 
 def _load_last_poll(conn) -> datetime:
+    logger.info("RESCAN_FROM module value: %r", RESCAN_FROM)
+    if RESCAN_FROM:
+        try:
+            dt = datetime.fromisoformat(RESCAN_FROM).replace(tzinfo=timezone.utc)
+            logger.info("GMAIL_RESCAN_FROM set — scanning from %s", dt.isoformat())
+            return dt
+        except ValueError:
+            logger.warning("Invalid GMAIL_RESCAN_FROM value %r — ignoring", RESCAN_FROM)
     row = conn.execute(
         "SELECT value FROM gmail_poll_state WHERE key = 'last_poll'"
     ).fetchone()
@@ -95,7 +107,30 @@ def _mark_processed(conn, msg_id: str) -> None:
     )
 
 
+def _is_attachment_processed(conn, content_hash: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM processed_attachments WHERE content_hash = ?", [content_hash]
+    ).fetchone() is not None
+
+
+def _mark_attachment_processed(conn, content_hash: str, filename: str) -> None:
+    conn.execute(
+        "INSERT OR IGNORE INTO processed_attachments (content_hash, filename, processed_at) VALUES (?, ?, ?)",
+        [content_hash, filename, datetime.now(timezone.utc).isoformat()],
+    )
+
+
 def _poll_once(service, last_poll_time: datetime) -> None:
+    if not _poll_lock.acquire(blocking=False):
+        logger.info("Poll already in progress — skipping")
+        return
+    try:
+        _poll_once_inner(service, last_poll_time)
+    finally:
+        _poll_lock.release()
+
+
+def _poll_once_inner(service, last_poll_time: datetime) -> None:
     from ..db.client import generate_id, get_connection
     from ..ingestion.extractor import extract_from_bytes
     from ..ingestion.category_rules import guess_category
@@ -108,16 +143,20 @@ def _poll_once(service, last_poll_time: datetime) -> None:
         f" has:attachment after:{after_ts}"
     )
 
+    logger.info("Gmail query: %s", query)
     results = service.users().messages().list(userId="me", q=query).execute()
     messages = results.get("messages", [])
+    logger.info("Gmail query returned %d message(s)", len(messages))
 
     stored_total = 0
     for msg_meta in messages:
         msg_id = msg_meta["id"]
 
         if _is_processed(conn, msg_id):
+            logger.info("Message %s already processed — skipping", msg_id)
             continue
 
+        logger.info("Processing message %s", msg_id)
         try:
             msg = service.users().messages().get(
                 userId="me", id=msg_id, format="full"
@@ -126,15 +165,18 @@ def _poll_once(service, last_poll_time: datetime) -> None:
             logger.error("Failed to fetch message %s: %s", msg_id, e)
             continue
 
-        for part in _get_parts(msg.get("payload", {})):
-            mime = part.get("mimeType", "")
-            if mime not in ATTACHMENT_MIME_TYPES:
-                continue
+        parts = _get_parts(msg.get("payload", {}))
+        attachment_parts = [p for p in parts if p.get("mimeType", "") in ATTACHMENT_MIME_TYPES]
+        logger.info("Message %s has %d eligible attachment(s)", msg_id, len(attachment_parts))
 
+        extraction_failed = False
+        for part in attachment_parts:
+            mime = part.get("mimeType", "")
             filename = part.get("filename") or f"attachment_{msg_id}"
             body = part.get("body", {})
             attachment_id = body.get("attachmentId")
 
+            logger.info("Downloading attachment %s (mime=%s)", filename, mime)
             try:
                 if attachment_id:
                     att = service.users().messages().attachments().get(
@@ -147,13 +189,30 @@ def _poll_once(service, last_poll_time: datetime) -> None:
                 logger.error("Failed to decode attachment %s/%s: %s", msg_id, filename, e)
                 continue
 
+            logger.info("Attachment %s downloaded (%d bytes)", filename, len(file_bytes))
+            content_hash = hashlib.sha256(file_bytes).hexdigest()
+            if _is_attachment_processed(conn, content_hash):
+                logger.info("Skipping duplicate attachment %s (hash=%s...)", filename, content_hash[:8])
+                continue
+
+            logger.info("Extracting transactions from %s", filename)
             result = extract_from_bytes(file_bytes, filename, mime)
+
+            if result.extraction_notes and result.extraction_notes.startswith("Extraction error:"):
+                logger.warning("Extraction failed for %s/%s — will retry next poll", msg_id, filename)
+                extraction_failed = True
+                continue
+
             valid_txs = [
                 tx for tx in result.transactions
                 if tx.date is not None and tx.amount is not None and tx.merchant is not None
             ]
 
+            logger.info("Extraction complete: %d raw, %d valid transactions from %s",
+                        len(result.transactions), len(valid_txs), filename)
+
             if not valid_txs:
+                logger.warning("No valid transactions extracted from %s — skipping", filename)
                 continue
 
             first_tx_id = None
@@ -180,6 +239,8 @@ def _poll_once(service, last_poll_time: datetime) -> None:
                 )
                 stored_total += 1
 
+            _mark_attachment_processed(conn, content_hash, filename)
+
             # Store BLOB once per attachment, linked to first transaction only
             conn.execute(
                 """INSERT INTO documents
@@ -191,7 +252,8 @@ def _poll_once(service, last_poll_time: datetime) -> None:
                 ],
             )
 
-        _mark_processed(conn, msg_id)
+        if not extraction_failed:
+            _mark_processed(conn, msg_id)
         conn.commit()
 
     if stored_total:
@@ -227,6 +289,33 @@ def _polling_loop() -> None:
             logger.error("Gmail poll cycle error: %s", e)
             # last_poll NOT advanced — same window retried next cycle
         time.sleep(POLL_INTERVAL)
+
+
+def trigger_poll() -> int:
+    """Manually trigger one poll cycle. Returns number of new transactions stored. Thread-safe."""
+    from googleapiclient.discovery import build
+    from ..db.client import get_connection
+
+    if not Path(CREDENTIALS_PATH).exists():
+        raise RuntimeError("Gmail credentials not configured")
+
+    try:
+        creds = _get_credentials()
+        service = build("gmail", "v1", credentials=creds)
+    except Exception as e:
+        raise RuntimeError(f"Gmail authentication failed: {e}") from e
+
+    conn = get_connection()
+    last_poll = _load_last_poll(conn)
+
+    before = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+    _poll_once(service, last_poll)
+    after = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+
+    poll_start = datetime.now(timezone.utc)
+    _save_last_poll(conn, poll_start)
+
+    return after - before
 
 
 def start_polling():

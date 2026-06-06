@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option 2 — Paper Money</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,500;1,9..144,700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --paper: #F5EFE4;
+    --paper-dark: #EDE4D4;
+    --ink: #0F0F0F;
+    --ink-mid: #3A3530;
+    --ink-light: #7A7060;
+    --ink-faint: #C4B89A;
+    --green: #1B4332;
+    --green-mid: #2D6A4F;
+    --green-light: #E8F4EE;
+    --terracotta: #C45C26;
+    --terra-light: #FBF0EB;
+    --rule: 2px solid var(--ink);
+    --rule-thin: 1px solid var(--ink-faint);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* TOP NAVIGATION */
+  .topnav {
+    border-bottom: var(--rule);
+    background: var(--paper);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .topnav-inner {
+    display: flex;
+    align-items: stretch;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 0;
+    margin-right: 40px;
+    padding-right: 40px;
+    border-right: var(--rule);
+  }
+
+  .brand-name {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .brand-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-top: 3px;
+  }
+
+  .nav-tabs {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .nav-tab {
+    display: flex;
+    align-items: center;
+    padding: 0 22px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    border-right: 1px solid var(--ink-faint);
+    border-bottom: 3px solid transparent;
+    color: var(--ink-light);
+    transition: all 0.12s;
+    position: relative;
+    user-select: none;
+  }
+
+  .nav-tab:hover { color: var(--ink); background: var(--paper-dark); }
+
+  .nav-tab.active {
+    color: var(--ink);
+    background: var(--paper-dark);
+    border-bottom-color: var(--ink);
+  }
+
+  .nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--terracotta);
+    color: white;
+    font-size: 8px;
+    font-weight: 700;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    margin-left: 7px;
+  }
+
+  .nav-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-left: 24px;
+    border-left: 1px solid var(--ink-faint);
+  }
+
+  .user-chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: var(--ink-light);
+  }
+
+  .btn-outline {
+    background: transparent;
+    border: var(--rule);
+    color: var(--ink);
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .btn-outline:hover { background: var(--ink); color: var(--paper); }
+
+  .btn-solid {
+    background: var(--green);
+    border: 2px solid var(--green);
+    color: white;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .btn-solid:hover { background: var(--green-mid); border-color: var(--green-mid); }
+
+  /* PAGE */
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 0;
+  }
+
+  /* LEFT: LEDGER */
+  .ledger {
+    border-right: var(--rule);
+    min-height: calc(100vh - 55px);
+  }
+
+  /* PAGE HEADER */
+  .page-header {
+    padding: 28px 0 20px;
+    border-bottom: var(--rule);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .page-title-block {}
+
+  .page-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+  }
+
+  .page-title {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .page-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* FILTERS ROW */
+  .filters-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--ink-faint);
+    padding: 12px 0;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 20px;
+    margin-right: 20px;
+    border-right: 1px solid var(--ink-faint);
+  }
+
+  .filter-group:last-child { border-right: none; }
+
+  .filter-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+
+  .filter-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink-faint);
+    color: var(--ink);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 0;
+    outline: none;
+    width: 90px;
+    transition: border-color 0.12s;
+  }
+  .filter-input:focus { border-bottom-color: var(--ink); }
+
+  .filter-select {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink-faint);
+    color: var(--ink);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 2px 0;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* LEDGER TABLE */
+  .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .ledger-table thead th {
+    padding: 10px 0;
+    text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    border-bottom: 1px solid var(--ink);
+    font-weight: 400;
+  }
+
+  .ledger-table thead th.r { text-align: right; }
+
+  .ledger-table thead th:first-child { padding-right: 16px; width: 80px; }
+
+  .ledger-table tbody tr {
+    border-bottom: 1px solid var(--ink-faint);
+    cursor: pointer;
+  }
+
+  .ledger-table tbody tr:hover { background: var(--paper-dark); }
+  .ledger-table tbody tr.row-selected { background: var(--green-light); }
+
+  .ledger-table tbody td {
+    padding: 12px 0;
+    vertical-align: top;
+  }
+
+  .ledger-table tbody td:first-child { padding-right: 16px; }
+
+  .col-date {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-mid);
+    white-space: nowrap;
+    width: 70px;
+  }
+
+  .col-merchant {
+    width: 220px;
+  }
+
+  .merchant-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  .merchant-sub {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+  }
+
+  .bank-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    color: var(--ink-light);
+  }
+
+  .tag-chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.06em;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 1px 5px;
+  }
+
+  .col-cat {
+    width: 130px;
+  }
+
+  .cat-box {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border: 1.5px solid;
+  }
+
+  .cat-groceries { color: var(--green); border-color: var(--green); }
+  .cat-restaurants { color: var(--terracotta); border-color: var(--terracotta); }
+  .cat-transport { color: #1B3A6E; border-color: #1B3A6E; }
+  .cat-utilities { color: #4A1B6E; border-color: #4A1B6E; }
+  .cat-shopping { color: #6E4A1B; border-color: #6E4A1B; }
+  .cat-health { color: #8C2B2B; border-color: #8C2B2B; }
+  .cat-salary { color: var(--green); border-color: var(--green); background: var(--green-light); }
+
+  .col-owner {
+    width: 90px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-light);
+    letter-spacing: 0.06em;
+  }
+
+  .col-amount {
+    text-align: right;
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    width: 130px;
+  }
+
+  .col-amount.debit { color: var(--ink); }
+  .col-amount.credit { color: var(--green); }
+
+  .col-actions {
+    width: 70px;
+    text-align: right;
+  }
+
+  .act-btn {
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    color: var(--ink-faint);
+    font-size: 11px;
+    padding: 3px 5px;
+    transition: all 0.12s;
+  }
+  .act-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* LEDGER FOOTER */
+  .ledger-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-top: var(--rule);
+    margin-top: 0;
+  }
+
+  .footer-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .footer-stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+
+  .footer-stat-val {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+
+  .footer-pager {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .pager-btn {
+    background: none;
+    border: var(--rule);
+    color: var(--ink);
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.12s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pager-btn:hover { background: var(--ink); color: var(--paper); }
+
+  .pager-info {
+    border-top: var(--rule);
+    border-bottom: var(--rule);
+    padding: 0 16px;
+    height: 32px;
+    display: flex; align-items: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--ink-mid);
+  }
+
+  /* RIGHT: ANALYTICS SIDEBAR */
+  .sidebar-analytics {
+    padding: 28px 0 28px 32px;
+  }
+
+  .sidebar-section {
+    margin-bottom: 28px;
+  }
+
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--ink-faint);
+  }
+
+  .kpi-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 12px;
+  }
+
+  .kpi-block {}
+
+  .kpi-val {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .kpi-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-top: 4px;
+  }
+
+  .kpi-change {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+  }
+  .kpi-change.bad { color: var(--terracotta); }
+  .kpi-change.good { color: var(--green); }
+
+  /* Bar chart */
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bar-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    width: 80px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 12px;
+    background: var(--paper-dark);
+    position: relative;
+    border: 1px solid var(--ink-faint);
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 0.5s;
+  }
+
+  .bar-fill.primary { background: var(--green); }
+  .bar-fill.secondary { background: var(--terracotta); opacity: 0.6; }
+  .bar-fill.tertiary { background: var(--ink-mid); opacity: 0.4; }
+  .bar-fill.q4 { background: #1B3A6E; opacity: 0.5; }
+  .bar-fill.q5 { background: #6E4A1B; opacity: 0.5; }
+
+  .bar-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-mid);
+    width: 55px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Trend lines */
+  .trend-line-wrap { margin-top: 8px; }
+
+  .owner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ink-faint);
+  }
+
+  .owner-row:last-child { border-bottom: none; }
+
+  .owner-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .owner-total {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .owner-bar-mini {
+    height: 3px;
+    background: var(--green);
+    margin-top: 4px;
+    transition: width 0.5s;
+  }
+
+  .owner-pct {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    color: var(--ink-light);
+    margin-top: 2px;
+    letter-spacing: 0.06em;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--ink-faint); }
+
+  /* TREND SVG */
+  .trend-svg {
+    width: 100%;
+    height: 50px;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="brand">
+      <div class="brand-name">Household Finance</div>
+      <div class="brand-sub">Copilot</div>
+    </div>
+    <div class="nav-tabs">
+      <div class="nav-tab active">Browse</div>
+      <div class="nav-tab">Review Queue <span class="nav-badge">4</span></div>
+      <div class="nav-tab">Statements</div>
+      <div class="nav-tab">Rules</div>
+    </div>
+    <div class="nav-right">
+      <span class="user-chip">Rafael B.</span>
+      <button class="btn-outline">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<!-- PAGE -->
+<div class="page">
+
+  <!-- LEDGER -->
+  <div class="ledger">
+    <div class="page-header">
+      <div class="page-title-block">
+        <div class="page-eyebrow">Finance overview</div>
+        <div class="page-title">Browse</div>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn-outline">↓ Export CSV</button>
+        <button class="btn-solid">+ Upload Statement</button>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filters-row">
+      <div class="filter-group">
+        <span class="filter-label">From</span>
+        <input class="filter-input" type="text" value="2025-03-01">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">To</span>
+        <input class="filter-input" type="text" value="2025-06-06">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Category</span>
+        <select class="filter-select">
+          <option>All categories</option>
+          <option>Groceries</option>
+          <option>Restaurants</option>
+          <option>Transport</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <table class="ledger-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Merchant</th>
+          <th>Category</th>
+          <th>Owner</th>
+          <th class="r">Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-selected">
+          <td class="col-date">Jun 05</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Continente Online</div>
+            <div class="merchant-sub">
+              <span class="bank-name">Millennium BCP</span>
+              <span class="tag-chip">weekly shop</span>
+            </div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-groceries">Groceries</span></td>
+          <td class="col-owner">Shared</td>
+          <td class="col-amount debit">−€89.40</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">Jun 04</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Zara Home</div>
+            <div class="merchant-sub"><span class="bank-name">Revolut</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-shopping">Shopping</span></td>
+          <td class="col-owner">Heloisa</td>
+          <td class="col-amount debit">−€134.99</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">Jun 03</td>
+          <td class="col-merchant">
+            <div class="merchant-name">NOS Comunicações</div>
+            <div class="merchant-sub"><span class="bank-name">Caixa Geral</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-utilities">Utilities</span></td>
+          <td class="col-owner">Shared</td>
+          <td class="col-amount debit">−€45.00</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">Jun 02</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Salary — Primetag</div>
+            <div class="merchant-sub"><span class="bank-name">Millennium BCP</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-salary">Salary</span></td>
+          <td class="col-owner">Rafael</td>
+          <td class="col-amount credit">+€2,800.00</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">Jun 01</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Tasca do Chico</div>
+            <div class="merchant-sub"><span class="bank-name">Revolut</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-restaurants">Restaurants</span></td>
+          <td class="col-owner">Shared</td>
+          <td class="col-amount debit">−€67.20</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">May 31</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Farmácia Wellcare</div>
+            <div class="merchant-sub"><span class="bank-name">Caixa Geral</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-health">Healthcare</span></td>
+          <td class="col-owner">Heloisa</td>
+          <td class="col-amount debit">−€28.50</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">May 30</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Uber</div>
+            <div class="merchant-sub">
+              <span class="bank-name">Revolut</span>
+              <span class="tag-chip">commute</span>
+            </div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-transport">Transport</span></td>
+          <td class="col-owner">Rafael</td>
+          <td class="col-amount debit">−€12.40</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">May 29</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Mercadona</div>
+            <div class="merchant-sub"><span class="bank-name">Millennium BCP</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-groceries">Groceries</span></td>
+          <td class="col-owner">Shared</td>
+          <td class="col-amount debit">−€54.10</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">May 28</td>
+          <td class="col-merchant">
+            <div class="merchant-name">Netflix</div>
+            <div class="merchant-sub"><span class="bank-name">Revolut</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-utilities">Utilities</span></td>
+          <td class="col-owner">Shared</td>
+          <td class="col-amount debit">−€15.99</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+        <tr>
+          <td class="col-date">May 27</td>
+          <td class="col-merchant">
+            <div class="merchant-name">H&amp;M</div>
+            <div class="merchant-sub"><span class="bank-name">Caixa Geral</span></div>
+          </td>
+          <td class="col-cat"><span class="cat-box cat-shopping">Shopping</span></td>
+          <td class="col-owner">Heloisa</td>
+          <td class="col-amount debit">−€79.95</td>
+          <td class="col-actions"><button class="act-btn">✏</button><button class="act-btn">⋯</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- FOOTER -->
+    <div class="ledger-footer">
+      <div class="footer-stat">
+        <div class="footer-stat-label">Total spent</div>
+        <div class="footer-stat-val">€4,218.90</div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--ink-light);">47 transactions</div>
+      <div class="footer-pager">
+        <button class="pager-btn">‹</button>
+        <div class="pager-info">Page 1 of 5</div>
+        <button class="pager-btn">›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="sidebar-analytics">
+
+    <div class="sidebar-section">
+      <div class="section-title">Period at a glance</div>
+      <div class="kpi-row">
+        <div class="kpi-block">
+          <div class="kpi-val">€4,218</div>
+          <div class="kpi-label">Total spend</div>
+        </div>
+        <div class="kpi-change bad">↑ 12.4%</div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-block">
+          <div class="kpi-val" style="color:var(--green)">€2,800</div>
+          <div class="kpi-label">Income</div>
+        </div>
+        <div class="kpi-change good">Salary</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">By category</div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <div class="bar-label">Groceries</div>
+          <div class="bar-track"><div class="bar-fill primary" style="width:34%"></div></div>
+          <div class="bar-val">€1,434</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Restaurants</div>
+          <div class="bar-track"><div class="bar-fill secondary" style="width:21%"></div></div>
+          <div class="bar-val">€886</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Shopping</div>
+          <div class="bar-track"><div class="bar-fill tertiary" style="width:15%"></div></div>
+          <div class="bar-val">€633</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Transport</div>
+          <div class="bar-track"><div class="bar-fill q4" style="width:12%"></div></div>
+          <div class="bar-val">€506</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Other</div>
+          <div class="bar-track"><div class="bar-fill q5" style="width:18%"></div></div>
+          <div class="bar-val">€759</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">By owner</div>
+      <div class="owner-row">
+        <div>
+          <div class="owner-name">Rafael</div>
+          <div class="owner-bar-mini" style="width:60%"></div>
+          <div class="owner-pct">60%</div>
+        </div>
+        <div class="owner-total">€2,531</div>
+      </div>
+      <div class="owner-row">
+        <div>
+          <div class="owner-name">Heloisa</div>
+          <div class="owner-bar-mini" style="width:25%;background:var(--terracotta)"></div>
+          <div class="owner-pct">25%</div>
+        </div>
+        <div class="owner-total">€1,055</div>
+      </div>
+      <div class="owner-row">
+        <div>
+          <div class="owner-name">Shared</div>
+          <div class="owner-bar-mini" style="width:15%;background:var(--ink-faint)"></div>
+          <div class="owner-pct">15%</div>
+        </div>
+        <div class="owner-total">€633</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">Weekly spend</div>
+      <svg class="trend-svg" viewBox="0 0 240 50" preserveAspectRatio="none">
+        <!-- Grid lines -->
+        <line x1="0" y1="10" x2="240" y2="10" stroke="#C4B89A" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="0" y1="30" x2="240" y2="30" stroke="#C4B89A" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <!-- Fill area -->
+        <polyline points="0,42 34,35 68,37 102,22 136,28 170,15 204,20 240,10 240,50 0,50"
+          fill="#1B4332" opacity="0.12"/>
+        <!-- Line -->
+        <polyline points="0,42 34,35 68,37 102,22 136,28 170,15 204,20 240,10"
+          fill="none" stroke="#1B4332" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Dots -->
+        <circle cx="170" cy="15" r="3" fill="#1B4332"/>
+        <circle cx="240" cy="10" r="3" fill="#1B4332"/>
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

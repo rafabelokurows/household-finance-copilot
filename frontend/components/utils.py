@@ -39,6 +39,8 @@ def make_api_call(
             resp = requests.put(
                 endpoint, json=data, headers=headers, timeout=API_TIMEOUT
             )
+        elif method.upper() == "DELETE":
+            resp = requests.delete(endpoint, headers=headers, timeout=API_TIMEOUT)
         else:
             return False, "Unsupported HTTP method"
 
@@ -53,6 +55,8 @@ def make_api_call(
             error_detail = resp.json().get("detail", resp.text)
             return False, f"Error {resp.status_code}: {error_detail}"
 
+        if resp.status_code == 204 or not resp.content:
+            return True, {}
         return True, resp.json()
 
     except requests.Timeout:

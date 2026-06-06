@@ -119,9 +119,13 @@ def list_processed_transactions(
 
 @router.post("/poll_email")
 def poll_email():
-    """Poll for new emails and extract transactions."""
-    # This is a no-op for now since Gmail polling is handled by background thread
-    return {"new_transactions": 0, "status": "checked"}
+    """Manually trigger a Gmail poll cycle."""
+    from ..ingestion.gmail_poller import trigger_poll
+    try:
+        new_count = trigger_poll()
+        return {"new_transactions": new_count, "status": "checked"}
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
 
 
 @router.get("/export")
@@ -197,6 +201,31 @@ def list_transactions(
         params + [limit, offset]
     ).fetchall()
     return _attach_tags(conn, [_row_to_dict(r) for r in rows])
+
+
+@router.get("/statements")
+def list_statements():
+    """One row per source file with aggregated transaction metadata."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT
+            t.source_file                   AS filename,
+            t.bank,
+            COUNT(t.id)                     AS tx_count,
+            MIN(t.date)                     AS period_start,
+            MAX(t.date)                     AS period_end,
+            MIN(t.created_at)               AS processed_at,
+            d.uploaded_at,
+            d.mime_type
+        FROM transactions t
+        LEFT JOIN documents d ON d.filename = t.source_file
+        WHERE t.source_file IS NOT NULL
+        GROUP BY t.source_file
+        ORDER BY MIN(t.created_at) DESC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 @router.get("/{tx_id}")

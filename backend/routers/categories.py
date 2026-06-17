@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from ..db.client import get_connection
+from ..db.client import db_connection
 
 router = APIRouter()
 
@@ -12,18 +12,19 @@ VALID_CATEGORIES = {
 
 
 def _get_rules(conn) -> list[dict]:
-    rows = conn.execute(
-        "SELECT category, keyword FROM category_rules ORDER BY priority, id"
-    ).fetchall()
+    cur = conn.cursor()
+    cur.execute("SELECT category, keyword FROM category_rules ORDER BY priority, id")
+    rows = cur.fetchall()
     grouped: dict[str, list[str]] = {}
-    for category, keyword in rows:
-        grouped.setdefault(category, []).append(keyword)
+    for row in rows:
+        grouped.setdefault(row["category"], []).append(row["keyword"])
     return [{"category": cat, "keywords": kws} for cat, kws in grouped.items()]
 
 
 @router.get("/rules")
 def get_rules():
-    return _get_rules(get_connection())
+    with db_connection() as conn:
+        return _get_rules(conn)
 
 
 class KeywordPayload(BaseModel):
@@ -37,27 +38,31 @@ def add_keyword(category: str, body: KeywordPayload):
     keyword = body.keyword.strip().lower()
     if not keyword:
         raise HTTPException(400, "Keyword cannot be empty")
-    conn = get_connection()
-    max_priority = conn.execute("SELECT COALESCE(MAX(priority), -1) FROM category_rules").fetchone()[0]
-    try:
-        conn.execute(
-            "INSERT INTO category_rules (category, keyword, priority) VALUES (?, ?, ?)",
-            [category, keyword, max_priority + 1],
-        )
-        conn.commit()
-    except Exception:
-        raise HTTPException(409, f"Keyword '{keyword}' already exists in {category}")
-    return _get_rules(conn)
+
+    with db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(priority), -1) AS max_priority FROM category_rules")
+        max_priority = cur.fetchone()["max_priority"]
+        try:
+            cur.execute(
+                "INSERT INTO category_rules (category, keyword, priority) VALUES (%s, %s, %s)",
+                [category, keyword, max_priority + 1],
+            )
+            conn.commit()
+        except Exception:
+            raise HTTPException(409, f"Keyword '{keyword}' already exists in {category}")
+        return _get_rules(conn)
 
 
 @router.delete("/rules/{category}/keywords/{keyword}")
 def remove_keyword(category: str, keyword: str):
-    conn = get_connection()
-    result = conn.execute(
-        "DELETE FROM category_rules WHERE category = ? AND keyword = ?",
-        [category, keyword],
-    )
-    conn.commit()
-    if result.rowcount == 0:
-        raise HTTPException(404, f"Keyword '{keyword}' not found in {category}")
-    return _get_rules(conn)
+    with db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM category_rules WHERE category = %s AND keyword = %s",
+            [category, keyword],
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(404, f"Keyword '{keyword}' not found in {category}")
+        return _get_rules(conn)

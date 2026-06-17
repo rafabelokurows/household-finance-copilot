@@ -71,6 +71,7 @@ class TransactionUpdate(BaseModel):
     owner: Optional[Owner] = None
     status: Optional[Status] = None
     bank: Optional[str] = None
+    description: Optional[str] = None
 
 
 class Transaction(TransactionBase):

@@ -37,16 +37,15 @@ def guess_category(merchant: str) -> Optional[str]:
         return None
     lower = merchant.lower()
     try:
-        from ..db.client import get_connection
-        conn = get_connection()
-        rows = conn.execute(
-            "SELECT keyword, category FROM category_rules ORDER BY priority, id"
-        ).fetchall()
-        for row in rows:
-            if row[0] in lower:
-                return row[1]
+        from ..db.client import db_connection
+        with db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT keyword, category FROM category_rules ORDER BY priority, id")
+            rows = cur.fetchall()
+            for row in rows:
+                if row["keyword"] in lower:
+                    return row["category"]
     except Exception:
-        # Fallback to hardcoded rules if DB unavailable
         for keywords, category in RULES:
             if any(kw in lower for kw in keywords):
                 return category

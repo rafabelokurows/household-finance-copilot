@@ -2,17 +2,17 @@ CREATE TABLE IF NOT EXISTS transactions (
     id          TEXT PRIMARY KEY,
     date        DATE NOT NULL,
     merchant    TEXT NOT NULL,
-    amount      REAL NOT NULL,
+    amount      DECIMAL(12,2) NOT NULL,
     currency    TEXT DEFAULT 'EUR',
     category    TEXT,
     owner       TEXT CHECK (owner IN ('Rafael','Heloisa','Shared')),
-    confidence  REAL NOT NULL DEFAULT 0.5,
+    confidence  DECIMAL(5,4) NOT NULL DEFAULT 0.5,
     status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
     source_file TEXT,
     bank        TEXT,
     description TEXT,
     raw_json    TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS documents (
     transaction_id TEXT NOT NULL,
     filename       TEXT NOT NULL,
     mime_type      TEXT NOT NULL DEFAULT 'application/octet-stream',
-    file_blob      BLOB NOT NULL,
-    uploaded_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    file_blob      BYTEA NOT NULL,
+    uploaded_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     FOREIGN KEY (transaction_id) REFERENCES transactions(id)
 );
 
@@ -54,9 +54,9 @@ CREATE TABLE IF NOT EXISTS processed_attachments (
 );
 
 CREATE TABLE IF NOT EXISTS category_rules (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    id       SERIAL PRIMARY KEY,
     category TEXT NOT NULL,
     keyword  TEXT NOT NULL,
     priority INTEGER NOT NULL,
     UNIQUE(category, keyword)
-)
+);

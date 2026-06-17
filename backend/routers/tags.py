@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from ..db.client import get_connection
+from ..db.client import db_connection
 
 router = APIRouter()
 
@@ -11,47 +11,52 @@ class TagsPayload(BaseModel):
 
 @router.get("/tags")
 def list_tags():
-    """Return all known tag names for autocomplete."""
-    conn = get_connection()
-    rows = conn.execute("SELECT name FROM tags ORDER BY name").fetchall()
-    return {"tags": [r[0] for r in rows]}
+    with db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM tags ORDER BY name")
+        rows = cur.fetchall()
+    return {"tags": [r["name"] for r in rows]}
 
 
 @router.get("/transactions/{tx_id}/tags")
 def get_transaction_tags(tx_id: str):
-    conn = get_connection()
-    _require_transaction(conn, tx_id)
-    rows = conn.execute(
-        "SELECT tag_name FROM transaction_tags WHERE transaction_id = ? ORDER BY tag_name",
-        [tx_id],
-    ).fetchall()
-    return {"tags": [r[0] for r in rows]}
+    with db_connection() as conn:
+        cur = conn.cursor()
+        _require_transaction(cur, tx_id)
+        cur.execute(
+            "SELECT tag_name FROM transaction_tags WHERE transaction_id = %s ORDER BY tag_name",
+            [tx_id],
+        )
+        rows = cur.fetchall()
+    return {"tags": [r["tag_name"] for r in rows]}
 
 
 @router.put("/transactions/{tx_id}/tags")
 def set_transaction_tags(tx_id: str, body: TagsPayload):
-    """Replace all tags for a transaction atomically."""
-    conn = get_connection()
-    _require_transaction(conn, tx_id)
-
     tags = [t.strip().lower() for t in body.tags if t.strip()]
 
-    for tag in tags:
-        conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", [tag])
+    with db_connection() as conn:
+        cur = conn.cursor()
+        _require_transaction(cur, tx_id)
 
-    conn.execute(
-        "DELETE FROM transaction_tags WHERE transaction_id = ?", [tx_id]
-    )
-    for tag in tags:
-        conn.execute(
-            "INSERT INTO transaction_tags (transaction_id, tag_name) VALUES (?, ?)",
-            [tx_id, tag],
-        )
+        for tag in tags:
+            cur.execute(
+                "INSERT INTO tags (name) VALUES (%s) ON CONFLICT DO NOTHING", [tag]
+            )
 
-    conn.commit()
+        cur.execute("DELETE FROM transaction_tags WHERE transaction_id = %s", [tx_id])
+        for tag in tags:
+            cur.execute(
+                "INSERT INTO transaction_tags (transaction_id, tag_name) VALUES (%s, %s)",
+                [tx_id, tag],
+            )
+
+        conn.commit()
+
     return {"transaction_id": tx_id, "tags": tags}
 
 
-def _require_transaction(conn, tx_id: str):
-    if not conn.execute("SELECT 1 FROM transactions WHERE id = ?", [tx_id]).fetchone():
+def _require_transaction(cur, tx_id: str):
+    cur.execute("SELECT 1 FROM transactions WHERE id = %s", [tx_id])
+    if not cur.fetchone():
         raise HTTPException(404, "Transaction not found")

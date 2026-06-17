@@ -1,0 +1,70 @@
+@import './fonts.css';
+@import './tokens.css';
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Mono numbers */
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Buttons base */
+button {
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+/* Inputs base */
+input, select, textarea {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+select option {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--text); }

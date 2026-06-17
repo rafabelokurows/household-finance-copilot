@@ -1,0 +1,8 @@
+.amount {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.debit { color: var(--red); }
+.credit { color: var(--green); }

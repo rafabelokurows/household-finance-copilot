@@ -1,0 +1,203 @@
+.page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.filterInput {
+  height: 30px;
+  font-size: 12px;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summaryItem {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 14px 16px;
+}
+
+.summaryItem span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.summaryItem strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 16px;
+  min-height: 360px;
+}
+
+.cardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.cardHeader h2 {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cardHeader p {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.legendList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.legendRow span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legendRow strong {
+  color: var(--text);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.legendDot,
+.tooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip {
+  min-width: 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  padding: 8px 10px;
+  color: var(--text);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
+}
+
+.tooltipLabel {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.tooltipRow strong {
+  margin-left: auto;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.empty,
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty {
+  min-height: 240px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.center {
+  min-height: 320px;
+}
+
+@media (max-width: 1100px) {
+  .grid,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .content {
+    padding: 12px;
+  }
+
+  .filters {
+    width: 100%;
+  }
+
+  .filterInput {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .legendList {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,20 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.remove {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  transition: color 0.1s;
+}
+.remove:hover { color: var(--red); }

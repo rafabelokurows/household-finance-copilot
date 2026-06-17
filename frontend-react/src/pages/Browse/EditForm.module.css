@@ -1,0 +1,83 @@
+.form {
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select {
+  height: 30px;
+  font-size: 12px;
+  min-width: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--gold-dim);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.saveBtn {
+  padding: 6px 16px;
+  background: var(--gold);
+  color: var(--bg);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  height: 30px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.saveBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cancelBtn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  height: 30px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.cancelBtn:hover {
+  border-color: var(--text-muted);
+}

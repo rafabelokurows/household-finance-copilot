@@ -1,0 +1,103 @@
+.row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.row:hover {
+  background: var(--surface2);
+}
+
+.row.selected {
+  background: rgba(201, 146, 74, 0.06);
+}
+
+td {
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.date {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.merchant {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.bank {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tagInput {
+  height: 22px;
+  font-size: 11px;
+  padding: 0 6px;
+  width: 100px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+
+.addTagBtn {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.addTagBtn:hover {
+  color: var(--gold);
+}
+
+.owner {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.amount {
+  text-align: right;
+}
+
+.actions {
+  text-align: right;
+}
+
+.editBtn {
+  padding: 4px 8px;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.editBtn:hover,
+.editBtn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.editRow td {
+  padding: 0;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}

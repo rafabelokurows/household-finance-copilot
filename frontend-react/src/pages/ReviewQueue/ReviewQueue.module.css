@@ -1,0 +1,25 @@
+.page { display: flex; flex-direction: column; height: 100%; }
+.body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.list {
+  width: 60%;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-right: 1px solid var(--border);
+}
+.panel { width: 40%; overflow-y: auto; }
+.center { display: flex; justify-content: center; align-items: center; padding: 60px; color: var(--text-muted); font-size: 13px; }
+.pollBtn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.pollBtn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.pollBtn:disabled { opacity: 0.5; }
+.sortSelect { height: 28px; font-size: 12px; }

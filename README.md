@@ -17,7 +17,7 @@ Built for two people: **Rafael** and **Heloisa**. Transactions are tagged per pe
 ## Features
 
 - **Multi-bank ingestion**: Accepts screenshots and PDFs from Portuguese banks (e.g. Millennium BCP, Caixa Geral, Santander PT) — designed to work across different countries' statement layouts
-- **AI extraction with Gemini Flash**: Uses Google Gemini 2.0 Flash vision to parse transactions from images and PDFs — free tier friendly
+- **AI extraction with Groq**: Uses Llama 3.3 70B (text PDFs) and Llama 3.2 11B Vision (images/scanned PDFs) — free tier friendly
 - **Review queue**: Every extracted transaction goes through a confidence-gated review queue before being committed to the database
 - **Source document viewer**: Each transaction in the review queue can display its original receipt or bank statement — view inline or download
 - **Analytics dashboard**: Monthly spend by category, trends, and per-user breakdowns
@@ -114,9 +114,34 @@ No real financial data is stored in this repository. The `data/` directory is gi
                             └── gmail_poll_state
 ```
 
+## Screenshots
+
+**Transactions**
+![Transactions](docs/screenshot_transactions.png)
+
+**Analytics**
+![Analytics](docs/screenshot_analytics.png)
+
+**Category Rules**
+![Rules](docs/screenshot_rules.png)
+
 ## Architecture Decisions
 
-Key decisions (AI model, database, email strategy, deployment, privacy) are documented in [docs/ADR.md](docs/ADR.md).
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [ADR-001](docs/ADR.md#adr-001--ai-vision-model-google-gemini-flash) | AI model: Google Gemini Flash | Superseded by ADR-010 |
+| [ADR-002](docs/ADR.md#adr-002--database-duckdb) | Database: DuckDB | Superseded by ADR-011 |
+| [ADR-003](docs/ADR.md#adr-003--email-ingestion-gmail-api-oauth-polling) | Email ingestion: Gmail API OAuth polling | Accepted |
+| [ADR-004](docs/ADR.md#adr-004--deployment-local-docker-compose) | Deployment: Local Docker Compose | Superseded by ADR-012 |
+| [ADR-005](docs/ADR.md#adr-005--confidence-threshold-090) | Confidence threshold: 0.90 | Accepted |
+| [ADR-006](docs/ADR.md#adr-006--owner-assignment-email-subject-convention) | Owner assignment: email subject convention | Accepted |
+| [ADR-007](docs/ADR.md#adr-007--privacy-gitignore-data--dbt-seed-demo-data) | Privacy: gitignore data | Accepted |
+| [ADR-008](docs/ADR.md#adr-008--duckdb-connection-singleton-pattern) | DB connection: DuckDB singleton | Superseded by ADR-011 |
+| [ADR-009](docs/ADR.md#adr-009--gemini-input-inline-base64-vs-file-upload-api) | Gemini input: inline base64 | Accepted |
+| [ADR-010](docs/ADR.md#adr-010--ai-extraction-model-groq-llama-3) | AI model: Groq + Llama 3 | Accepted |
+| [ADR-011](docs/ADR.md#adr-011--database-postgresql-via-supabase) | Database: PostgreSQL via Supabase | Accepted |
+| [ADR-012](docs/ADR.md#adr-012--deployment-vercel-frontend--render-backend--supabase-database) | Deployment: Vercel + Render + Supabase | Accepted |
+| [ADR-013](docs/ADR.md#adr-013--frontend-react--vite-replacing-streamlit) | Frontend: React + Vite | Accepted |
 
 ## Users
 

@@ -4,15 +4,62 @@ An AI-powered household finance platform for Rafael and Heloisa. Ingests bank st
 
 ## Why this exists
 
-Most personal finance tools assume you live in one country, bank with one institution, and want your data sent to a third-party cloud. That doesn't work well for a household that spans multiple Portuguese banks, has joint and individual expenses, and values keeping financial data off external servers.
+This started as a personal problem. Rafael and Heloisa bank across multiple Portuguese institutions, have joint and individual expenses, and didn't want their financial data sitting on a third-party server. Most finance apps assume one bank, one country, and comfort with handing everything to the cloud. None of that fit.
 
-This app exists to answer one simple question: *where is our money going?* Bank statements arrive as PDFs or images across several email accounts. Logging into each bank's portal to piece together a monthly picture is tedious and error-prone. This tool automates the ingestion — polling email attachments, running vision AI over the documents, and landing everything in a single review queue where transactions can be confirmed, corrected, and categorised before hitting the database.
-
-The review step is intentional. AI extraction isn't perfect, especially across different bank layouts and receipt formats. Rather than silently accepting every parsed transaction, the app surfaces low-confidence extractions for human review. High-confidence ones are approved automatically; the rest wait in the queue. Nothing enters the analytics until someone has signed off on it.
+Every month, figuring out where the money went meant logging into several different bank portals and combining exports by hand. The fix: forward statements by email, let the app extract the transactions with AI, and review anything it wasn't confident about before it lands in the database. The review step matters because AI doesn't read every bank's PDF layout perfectly — low-confidence extractions sit in a queue until a human checks them.
 
 ## Who it's for
 
-Built for two people: **Rafael** and **Heloisa**. Transactions are tagged per person or as shared, so monthly spend can be broken down individually or as a household. It's a private, self-hosted tool — not a product, not a SaaS, not designed to scale beyond a single home.
+It was built for two people, but the underlying problem isn't unusual. Tracking household expenses across multiple banks — especially across countries or with a partner — is friction that most finance tools don't handle well. Each transaction can be tagged to a person or marked shared, so it works for a couple, a flatshare, or anyone splitting expenses between people.
+
+Self-hosted, free-tier stack. No subscription, no third party holding your data.
+
+
+## Architecture
+
+```
+  Browser → Vercel CDN (React SPA, port 5173 local)
+                  ↓ HTTPS API calls
+          Render / localhost (FastAPI, port 8000)
+                  |
+                  ├── Groq API (Llama 3 — text + vision extraction)
+                  ├── Gmail API (background poller thread)
+                  └── Supabase (PostgreSQL)
+                            ├── transactions
+                            ├── documents (BLOB)
+                            ├── tags / transaction_tags
+                            ├── category_rules
+                            └── gmail_poll_state
+```
+
+## Screenshots
+
+**Transactions**
+![Transactions](docs/screenshot_transactions.png)
+
+**Analytics**
+![Analytics](docs/screenshot_analytics.png)
+
+**Category Rules**
+![Rules](docs/screenshot_rules.png)
+
+## Architecture Decisions
+
+| ADR | Decision | Status |
+|-----|----------|--------|
+| [ADR-001](docs/ADR.md#adr-001--ai-vision-model-google-gemini-flash) | AI model: Google Gemini Flash | Superseded by ADR-010 |
+| [ADR-002](docs/ADR.md#adr-002--database-duckdb) | Database: DuckDB | Superseded by ADR-011 |
+| [ADR-003](docs/ADR.md#adr-003--email-ingestion-gmail-api-oauth-polling) | Email ingestion: Gmail API OAuth polling | Accepted |
+| [ADR-004](docs/ADR.md#adr-004--deployment-local-docker-compose) | Deployment: Local Docker Compose | Superseded by ADR-012 |
+| [ADR-005](docs/ADR.md#adr-005--confidence-threshold-090) | Confidence threshold: 0.90 | Accepted |
+| [ADR-006](docs/ADR.md#adr-006--owner-assignment-email-subject-convention) | Owner assignment: email subject convention | Accepted |
+| [ADR-007](docs/ADR.md#adr-007--privacy-gitignore-data--dbt-seed-demo-data) | Privacy: gitignore data | Accepted |
+| [ADR-008](docs/ADR.md#adr-008--duckdb-connection-singleton-pattern) | DB connection: DuckDB singleton | Superseded by ADR-011 |
+| [ADR-009](docs/ADR.md#adr-009--gemini-input-inline-base64-vs-file-upload-api) | Gemini input: inline base64 | Accepted |
+| [ADR-010](docs/ADR.md#adr-010--ai-extraction-model-groq-llama-3) | AI model: Groq + Llama 3 | Accepted |
+| [ADR-011](docs/ADR.md#adr-011--database-postgresql-via-supabase) | Database: PostgreSQL via Supabase | Accepted |
+| [ADR-012](docs/ADR.md#adr-012--deployment-vercel-frontend--render-backend--supabase-database) | Deployment: Vercel + Render + Supabase | Accepted |
+| [ADR-013](docs/ADR.md#adr-013--frontend-react--vite-replacing-streamlit) | Frontend: React + Vite | Accepted |
 
 ## Features
 
@@ -65,8 +112,7 @@ npm run dev
 ```
 
 Test credentials (local dev only):
-- `rafael` / `rafael123`
-- `heloisa` / `heloisa123`
+- `demo` / `demo123`
 
 > **Without `GROQ_API_KEY`**: app runs in test mode — uploads and Gmail attachments are accepted but no transactions are extracted.
 
@@ -96,52 +142,6 @@ Both `credentials.json` and `token.json` are gitignored and must never be commit
 ## Privacy
 
 No real financial data is stored in this repository. The `data/` directory is gitignored.
-
-## Architecture
-
-```
-  Browser → Vercel CDN (React SPA, port 5173 local)
-                  ↓ HTTPS API calls
-          Render / localhost (FastAPI, port 8000)
-                  |
-                  ├── Groq API (Llama 3 — text + vision extraction)
-                  ├── Gmail API (background poller thread)
-                  └── Supabase (PostgreSQL)
-                            ├── transactions
-                            ├── documents (BLOB)
-                            ├── tags / transaction_tags
-                            ├── category_rules
-                            └── gmail_poll_state
-```
-
-## Screenshots
-
-**Transactions**
-![Transactions](docs/screenshot_transactions.png)
-
-**Analytics**
-![Analytics](docs/screenshot_analytics.png)
-
-**Category Rules**
-![Rules](docs/screenshot_rules.png)
-
-## Architecture Decisions
-
-| ADR | Decision | Status |
-|-----|----------|--------|
-| [ADR-001](docs/ADR.md#adr-001--ai-vision-model-google-gemini-flash) | AI model: Google Gemini Flash | Superseded by ADR-010 |
-| [ADR-002](docs/ADR.md#adr-002--database-duckdb) | Database: DuckDB | Superseded by ADR-011 |
-| [ADR-003](docs/ADR.md#adr-003--email-ingestion-gmail-api-oauth-polling) | Email ingestion: Gmail API OAuth polling | Accepted |
-| [ADR-004](docs/ADR.md#adr-004--deployment-local-docker-compose) | Deployment: Local Docker Compose | Superseded by ADR-012 |
-| [ADR-005](docs/ADR.md#adr-005--confidence-threshold-090) | Confidence threshold: 0.90 | Accepted |
-| [ADR-006](docs/ADR.md#adr-006--owner-assignment-email-subject-convention) | Owner assignment: email subject convention | Accepted |
-| [ADR-007](docs/ADR.md#adr-007--privacy-gitignore-data--dbt-seed-demo-data) | Privacy: gitignore data | Accepted |
-| [ADR-008](docs/ADR.md#adr-008--duckdb-connection-singleton-pattern) | DB connection: DuckDB singleton | Superseded by ADR-011 |
-| [ADR-009](docs/ADR.md#adr-009--gemini-input-inline-base64-vs-file-upload-api) | Gemini input: inline base64 | Accepted |
-| [ADR-010](docs/ADR.md#adr-010--ai-extraction-model-groq-llama-3) | AI model: Groq + Llama 3 | Accepted |
-| [ADR-011](docs/ADR.md#adr-011--database-postgresql-via-supabase) | Database: PostgreSQL via Supabase | Accepted |
-| [ADR-012](docs/ADR.md#adr-012--deployment-vercel-frontend--render-backend--supabase-database) | Deployment: Vercel + Render + Supabase | Accepted |
-| [ADR-013](docs/ADR.md#adr-013--frontend-react--vite-replacing-streamlit) | Frontend: React + Vite | Accepted |
 
 ## Users
 

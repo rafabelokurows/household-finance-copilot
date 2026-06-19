@@ -6,7 +6,7 @@ Captures the key decisions made during the design and build of Household Finance
 
 ## ADR-001 — AI Vision Model: Google Gemini Flash
 
-**Status:** Accepted  
+**Status:** Superseded by ADR-010  
 **Date:** 2026-05-31
 
 ### Context
@@ -42,7 +42,7 @@ The system needs to extract structured transaction data from unstructured inputs
 
 ## ADR-002 — Database: DuckDB
 
-**Status:** Accepted  
+**Status:** Superseded by ADR-011  
 **Date:** 2026-05-31
 
 ### Context
@@ -121,7 +121,7 @@ The main data input flow is forwarding bank statement screenshots/PDFs by email.
 
 ## ADR-004 — Deployment: Local Docker Compose
 
-**Status:** Accepted  
+**Status:** Superseded by ADR-012  
 **Date:** 2026-05-31
 
 ### Context
@@ -238,7 +238,7 @@ Two-layer approach:
 
 ## ADR-008 — DuckDB Connection: Singleton Pattern
 
-**Status:** Accepted  
+**Status:** Superseded by ADR-011  
 **Date:** 2026-05-31
 
 ### Context
@@ -283,3 +283,166 @@ Gemini can receive file data in two ways: inline base64-encoded bytes in the req
 ### Trade-offs
 
 - If users ever try to ingest large multi-page PDF exports (>20MB), inline encoding will fail. The File Upload API would be needed. For now this is out of scope.
+
+---
+
+## ADR-010 — AI Extraction Model: Groq (Llama 3)
+
+**Status:** Accepted  
+**Date:** 2026-06-05  
+**Supersedes:** ADR-001
+
+### Context
+
+Google Gemini Flash was the original extraction model. After initial use, latency and API reliability during peak hours prompted evaluation of alternatives. Groq's inference API offers significantly faster response times due to custom LPU hardware.
+
+### Options considered
+
+| Option | Speed | Cost | Vision support |
+|--------|-------|------|----------------|
+| Google Gemini 2.0 Flash | Moderate | Free tier | Yes |
+| Groq + Llama 3.3 70B | Very fast | Free tier | Text only |
+| Groq + Llama 3.2 11B Vision | Very fast | Free tier | Yes |
+
+### Decision
+
+**Groq API** with two models depending on input type:
+- Text PDFs (extractable text ≥ 200 chars): `llama-3.3-70b-versatile`
+- Image/scanned PDFs: `llama-3.2-11b-vision-preview`
+
+Both configurable via `GROQ_TEXT_MODEL` / `GROQ_VISION_MODEL` env vars.
+
+### Reasons
+
+- Groq's LPU inference is substantially faster than Gemini for typical statement sizes
+- Free tier covers personal household usage
+- Hybrid approach (text model for text PDFs, vision model for images) gives better accuracy than forcing all inputs through a vision model
+- Model names are env-var-configurable — easy to swap as Groq releases new models
+
+### Trade-offs
+
+- Llama 3.2 11B vision is less capable than Gemini Flash on dense multi-column bank layouts. Mitigated by the confidence threshold and review queue (ADR-005).
+- Groq free tier has rate limits (~30 req/min). Acceptable for household ingestion volumes.
+
+---
+
+## ADR-011 — Database: PostgreSQL via Supabase
+
+**Status:** Accepted  
+**Date:** 2026-06-17  
+**Supersedes:** ADR-002, ADR-008
+
+### Context
+
+The original DuckDB database (ADR-002) was replaced with SQLite during a refactor, then migrated to PostgreSQL to support cloud deployment. A hosted database is required when the backend runs on Render (a stateless cloud service with no persistent local filesystem).
+
+### Options considered
+
+| Option | Hosting | Cost | Managed |
+|--------|---------|------|---------|
+| SQLite (file) | Local only | Free | No |
+| PostgreSQL on Render | Render service | $7/mo | Partial |
+| Supabase | Cloud (hosted Postgres) | Free tier | Yes |
+| PlanetScale / Neon | Cloud | Free tier | Yes |
+
+### Decision
+
+**PostgreSQL hosted on Supabase**, connected via `psycopg2` connection pool (`ThreadedConnectionPool`, min=1, max=10).
+
+### Reasons
+
+- Supabase free tier provides a persistent hosted Postgres instance — no cost for a personal project
+- `DATABASE_URL` env var makes the connection portable (swap Supabase for any Postgres with no code change)
+- `ThreadedConnectionPool` safely handles FastAPI's thread-pool concurrency, replacing the DuckDB singleton pattern
+- Supabase dashboard provides a SQL editor and table viewer — convenient for ad-hoc queries and debugging
+
+### Trade-offs
+
+- Data leaves the local machine (hosted on Supabase infrastructure). Acceptable for a household project.
+- Supabase free tier pauses after 1 week of inactivity. Resume via the Supabase dashboard if the app returns a connection error after idle periods.
+- Binary document blobs (`documents` table) are stored in Postgres — not ideal at scale, but fine for personal use.
+
+---
+
+## ADR-012 — Deployment: Vercel (frontend) + Render (backend) + Supabase (database)
+
+**Status:** Accepted  
+**Date:** 2026-06-17  
+**Supersedes:** ADR-004
+
+### Context
+
+Local Docker Compose (ADR-004) has no live URL, which limits the portfolio value and makes the app inaccessible when not at the development machine. A cloud deployment was desired.
+
+### Options considered
+
+| Option | Frontend | Backend | DB | Cost |
+|--------|----------|---------|-----|------|
+| Local Docker Compose | Local | Local | Local file | Free |
+| Vercel + Render + Supabase | Vercel CDN | Render free | Supabase free | Free |
+| Railway (full stack) | Railway | Railway | Railway | ~$5/mo |
+| Azure Container Apps | Azure | Azure | Azure | ~$20/mo |
+
+### Decision
+
+**Vercel** for the React frontend, **Render** for the FastAPI backend, **Supabase** for PostgreSQL.
+
+### Reasons
+
+- All three have generous free tiers that cover personal household usage
+- Vercel is purpose-built for Vite/React — zero-config deploys from GitHub
+- Render supports Python/uvicorn natively with a `render.yaml` configuration file
+- Supabase is the hosted database (ADR-011) — no additional service needed
+
+### Architecture
+
+```
+Browser → Vercel CDN (React SPA)
+               ↓ HTTPS API calls
+         Render (FastAPI, port 8000)
+               ↓
+         Supabase (PostgreSQL)
+               ↑
+         Gmail API (background poller thread)
+```
+
+### Trade-offs
+
+- Render free tier spins down after 15 minutes of inactivity. First request after idle takes ~30s to cold-start.
+- Supabase free tier pauses after 1 week of inactivity (see ADR-011).
+- No persistent filesystem on Render — all state must live in Supabase.
+
+---
+
+## ADR-013 — Frontend: React + Vite (replacing Streamlit)
+
+**Status:** Accepted  
+**Date:** 2026-06-17
+
+### Context
+
+The original frontend was built with Streamlit (ADR — no prior record). Streamlit is fast to prototype with but constrains layout, interactivity, and deployment options. A React frontend was built to support a richer UI and deploy cleanly to Vercel.
+
+### Options considered
+
+| Option | Dev speed | UI control | Vercel deploy | Portfolio value |
+|--------|-----------|------------|--------------|----------------|
+| Streamlit | Fast | Low | Poor | Low |
+| React + Vite | Moderate | Full | Excellent | High |
+| Next.js | Moderate | Full | Excellent | High |
+
+### Decision
+
+**React 19 + Vite**, with React Query for server state and React Router for navigation.
+
+### Reasons
+
+- Full control over layout and UX — not limited to Streamlit widget library
+- Vite build output is a static SPA — deploys to Vercel with zero configuration
+- React Query handles API caching, loading/error states, and background refetching cleanly
+- React 19 + React Router v7 is a modern, portfolio-relevant stack
+
+### Trade-offs
+
+- More boilerplate than Streamlit for simple views
+- Requires a separate build step (`npm run build`) before deployment

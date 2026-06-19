@@ -28,37 +28,39 @@ Built for two people: **Rafael** and **Heloisa**. Transactions are tagged per pe
 | Layer | Technology |
 |-------|-----------|
 | Backend API | Python + FastAPI (port 8000) |
-| Frontend | Streamlit (port 8501) |
-| Database | SQLite (`data/finance.db`) |
-| AI / Vision | Google Gemini 2.0 Flash (`google-generativeai`) |
+| Frontend | React 19 + Vite (port 5173) |
+| Database | PostgreSQL via Supabase |
+| AI / Vision | Groq — Llama 3.3 70B (text) + Llama 3.2 11B Vision (images) |
 | Email ingestion | Gmail API (`google-api-python-client`) |
-| Deployment | Docker Compose (local only) |
+| Deployment | Vercel (frontend) + Render (backend) + Supabase (DB) |
 
-## Quick Start (local, no Docker)
+## Quick Start (local)
 
 ```bash
 # 1. Clone the repo
 git clone <repo-url>
 cd Household-Finance-Copilot
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env and set GEMINI_API_KEY (get one free at aistudio.google.com)
+# 2. Configure backend environment
+cp backend/.env.example backend/.env
+# Edit backend/.env — set GROQ_API_KEY and DATABASE_URL (Supabase connection string)
 
 # 3. Install backend dependencies
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # 4. Start the backend
-python -m uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8000
 
 # 5. Install frontend dependencies
-pip install -r frontend/requirements.txt
+cd frontend-react && npm install
 
-# 6. Start the frontend
-cd frontend && streamlit run app.py
+# 6. Configure frontend environment
+echo "VITE_API_BASE=http://localhost:8000" > .env
 
-# 7. Open the app
-# Frontend: http://localhost:8501
+# 7. Start the frontend
+npm run dev
+
+# Frontend: http://localhost:5173
 # Backend API docs: http://localhost:8000/docs
 ```
 
@@ -66,9 +68,7 @@ Test credentials (local dev only):
 - `rafael` / `rafael123`
 - `heloisa` / `heloisa123`
 
-The database is seeded automatically with 10 test transactions on first run.
-
-> **Without `GEMINI_API_KEY`**: app runs in test mode — uploads and Gmail attachments are accepted but no transactions are extracted.
+> **Without `GROQ_API_KEY`**: app runs in test mode — uploads and Gmail attachments are accepted but no transactions are extracted.
 
 ## Gmail Setup
 
@@ -100,37 +100,18 @@ No real financial data is stored in this repository. The `data/` directory is gi
 ## Architecture
 
 ```
-                        +------------------+
-                        |   Gmail API      |
-                        |  (email poller)  |
-                        +--------+---------+
-                                 |
-              Manual upload      |
-                    |            v
-                    |   +--------+---------+
-                    +-->|  FastAPI Backend  |
-                        |   (port 8000)    |
-                        |                  |
-                        |  Gemini Flash    |
-                        |  (vision OCR)    |
-                        +--------+---------+
-                                 |
-                        +--------v---------+
-                        |    SQLite        |
-                        | data/finance.db  |
-                        |                  |
-                        | transactions     |
-                        | documents (BLOB) |
-                        +--------+---------+
-                                 |
-                        +--------v---------+
-                        | Streamlit Frontend|
-                        |   (port 8501)    |
-                        | - Login/logout   |
-                        | - Review queue   |
-                        |   + doc viewer   |
-                        | - Browse/analytics|
-                        +------------------+
+  Browser → Vercel CDN (React SPA, port 5173 local)
+                  ↓ HTTPS API calls
+          Render / localhost (FastAPI, port 8000)
+                  |
+                  ├── Groq API (Llama 3 — text + vision extraction)
+                  ├── Gmail API (background poller thread)
+                  └── Supabase (PostgreSQL)
+                            ├── transactions
+                            ├── documents (BLOB)
+                            ├── tags / transaction_tags
+                            ├── category_rules
+                            └── gmail_poll_state
 ```
 
 ## Architecture Decisions

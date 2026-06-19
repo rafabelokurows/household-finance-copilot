@@ -4,60 +4,11 @@ from datetime import datetime, timedelta
 from components.utils import make_api_call, format_currency, format_date, show_tag_section
 from config import ENDPOINTS, CATEGORIES
 
-# ── Category pill colors (bg, text) ────────────────────────────────────────────
-
-_CAT_COLORS = {
-    "Groceries":      ("#1b3329", "#52b788"),
-    "Restaurants":    ("#332010", "#f4a261"),
-    "Transportation": ("#0d2033", "#4da6ff"),
-    "Utilities":      ("#1f0d33", "#a855f7"),
-    "Shopping":       ("#33101f", "#f472b6"),
-    "Entertainment":  ("#0d2626", "#2dd4bf"),
-    "Healthcare":     ("#330d0d", "#f87171"),
-    "Travel":         ("#0d1133", "#818cf8"),
-    "Insurance":      ("#221515", "#cd9b9b"),
-    "Salary":         ("#0d260d", "#86efac"),
-    "Bonus":          ("#262600", "#fde047"),
-    "Investments":    ("#002220", "#34d399"),
-    "Other":          ("#1a1a1a", "#888888"),
-}
-
-_PIE_COLORS = [
-    "#C9924A", "#52b788", "#4da6ff", "#a855f7", "#f472b6",
-    "#2dd4bf", "#f87171", "#818cf8", "#fde047", "#34d399",
-    "#f4a261", "#cd9b9b", "#888888",
-]
-
-_CHART_BASE = {
-    "paper_bgcolor": "rgba(0,0,0,0)",
-    "plot_bgcolor": "rgba(0,0,0,0)",
-    "font": {"color": "#8a8480", "size": 11, "family": "-apple-system, sans-serif"},
-    "margin": {"t": 20, "b": 40, "l": 0, "r": 0},
-}
-
-
-def _chart_axes():
-    return {
-        "gridcolor": "#1a1a1a",
-        "linecolor": "#1c1c1c",
-        "tickcolor": "#1c1c1c",
-        "zerolinecolor": "#1c1c1c",
-    }
-
-
-def category_pill_html(category: str) -> str:
-    if not category or category == "—":
-        return ""
-    bg, fg = _CAT_COLORS.get(category, ("#1a1a1a", "#888888"))
-    return (
-        f'<span style="background:{bg};color:{fg};padding:2px 9px;'
-        f'border-radius:4px;font-size:10px;font-weight:700;'
-        f'letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;'
-        f'display:inline-block">{category}</span>'
-    )
-
 
 def show_browse(token: str):
+    """Display browse/analytics tab."""
+
+    # Initialize session state
     if "date_from" not in st.session_state:
         st.session_state["date_from"] = datetime.now() - timedelta(weeks=12)
     if "date_to" not in st.session_state:
@@ -65,60 +16,93 @@ def show_browse(token: str):
     if "category_filter" not in st.session_state:
         st.session_state["category_filter"] = "All"
 
-    # ── Filter bar ──
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    # Filters
+    col1, col2, col3 = st.columns(3)
+
     with col1:
-        date_from = st.date_input("From", value=st.session_state["date_from"], key="browse_from")
+        date_from = st.date_input(
+            "From:",
+            value=st.session_state["date_from"],
+            key="browse_from",
+        )
         st.session_state["date_from"] = date_from
+
     with col2:
-        date_to = st.date_input("To", value=st.session_state["date_to"], key="browse_to")
+        date_to = st.date_input(
+            "To:",
+            value=st.session_state["date_to"],
+            key="browse_to",
+        )
         st.session_state["date_to"] = date_to
+
     with col3:
-        category = st.selectbox("Category", ["All"] + CATEGORIES, index=0, key="browse_category")
+        category = st.selectbox(
+            "Category:",
+            ["All"] + CATEGORIES,
+            index=0,
+            key="browse_category",
+        )
         st.session_state["category_filter"] = category
-    with col4:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if st.button("Export CSV", use_container_width=True):
+
+    export_col = st.columns(1)[0]
+    with export_col:
+        if st.button("📥 Export as CSV", use_container_width=False):
             export_csv(token, date_from, date_to)
 
     st.markdown("---")
 
-    # ── Charts row ──
+    # Charts
     col1, col2 = st.columns(2)
+
     with col1:
-        st.markdown("**Spending by category**")
+        st.subheader("Spending by Category")
         show_category_chart(token, date_from, date_to)
+
     with col2:
-        st.markdown("**Spending trends — 12 weeks**")
+        st.subheader("Spending Trends (12 weeks)")
         show_trends_chart(token)
 
     st.markdown("---")
-    st.markdown("**Spending by tag**")
+
+    st.subheader("Spending by Tag")
     show_tag_chart(token, date_from, date_to)
+
     st.markdown("---")
 
-    with st.expander("Monthly spending", expanded=False):
+    with st.expander("📅 Monthly Spending", expanded=False):
         show_monthly_chart(token)
-    with st.expander("Spending by owner", expanded=False):
+
+    with st.expander("👤 Spending by Owner", expanded=False):
         show_owner_chart(token, date_from, date_to)
-    with st.expander("Category trends — month over month", expanded=False):
+
+    with st.expander("📊 Category Trends (month-over-month)", expanded=False):
         show_category_trends_chart(token)
 
     st.markdown("---")
-    st.markdown("**Transactions**")
+
+    # Transaction table
+    st.subheader("Transactions")
     show_transaction_table(token, date_from, date_to, category)
 
 
 def show_category_chart(token: str, date_from, date_to):
+    """Display pie chart of spending by category."""
     success, response = make_api_call(
-        "GET", ENDPOINTS["analytics_by_category"], token=token,
-        params={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+        "GET",
+        ENDPOINTS["analytics_by_category"],
+        token=token,
+        params={
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+        },
     )
+
     if not success:
         st.error(f"Failed to load chart: {response}")
         return
 
     categories = response.get("categories", [])
+
     if not categories:
         st.info("No data for this period")
         return
@@ -126,26 +110,29 @@ def show_category_chart(token: str, date_from, date_to):
     cat_names = [c["name"] for c in categories]
     cat_amounts = [c["amount"] for c in categories]
 
-    fig = go.Figure(data=[go.Pie(
-        labels=cat_names,
-        values=cat_amounts,
-        textinfo="label+percent",
-        marker={"colors": _PIE_COLORS, "line": {"color": "#0a0a0a", "width": 2}},
-        hole=0.35,
-    )])
-    fig.update_layout(height=360, showlegend=False, **_CHART_BASE)
+    fig = go.Figure(
+        data=[go.Pie(labels=cat_names, values=cat_amounts, textinfo="label+percent")]
+    )
+    fig.update_layout(height=400)
+
     st.plotly_chart(fig, use_container_width=True)
 
 
 def show_trends_chart(token: str):
+    """Display line chart of spending trends."""
     success, response = make_api_call(
-        "GET", ENDPOINTS["analytics_trends"], token=token, params={"weeks": 12},
+        "GET",
+        ENDPOINTS["analytics_trends"],
+        token=token,
+        params={"weeks": 12},
     )
+
     if not success:
         st.error(f"Failed to load chart: {response}")
         return
 
     weeks = response.get("weeks", [])
+
     if not weeks:
         st.info("No data for this period")
         return
@@ -153,35 +140,37 @@ def show_trends_chart(token: str):
     week_labels = [w["week_start"] for w in weeks]
     week_amounts = [w["total_spending"] for w in weeks]
 
-    fig = go.Figure(data=[go.Scatter(
-        x=week_labels,
-        y=week_amounts,
-        mode="lines+markers",
-        line={"color": "#C9924A", "width": 2},
-        marker={"color": "#C9924A", "size": 5},
-        fill="tozeroy",
-        fillcolor="rgba(201,146,74,0.08)",
-    )])
-    axes = _chart_axes()
-    fig.update_layout(
-        height=360,
-        xaxis={"title": None, **axes},
-        yaxis={"title": "Total (€)", **axes},
-        **_CHART_BASE,
+    fig = go.Figure(
+        data=[go.Scatter(x=week_labels, y=week_amounts, mode="lines+markers")]
     )
+    fig.update_layout(
+        title="",
+        xaxis_title="Week",
+        yaxis_title="Total Spending ($)",
+        height=400,
+    )
+
     st.plotly_chart(fig, use_container_width=True)
 
 
 def show_tag_chart(token: str, date_from, date_to):
+    """Horizontal bar chart of spending per tag."""
     success, response = make_api_call(
-        "GET", ENDPOINTS["analytics_by_tag"], token=token,
-        params={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+        "GET",
+        ENDPOINTS["analytics_by_tag"],
+        token=token,
+        params={
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+        },
     )
+
     if not success:
         st.error(f"Failed to load tag data: {response}")
         return
 
     tag_data = response.get("tags", [])
+
     if not tag_data:
         st.info("No tagged transactions for this period")
         return
@@ -189,28 +178,24 @@ def show_tag_chart(token: str, date_from, date_to):
     names = [t["name"] for t in tag_data]
     amounts = [t["amount"] for t in tag_data]
 
-    axes = _chart_axes()
-    fig = go.Figure(data=[go.Bar(
-        x=amounts,
-        y=names,
-        orientation="h",
-        text=[f"€{a:,.2f}" for a in amounts],
-        textposition="outside",
-        marker={"color": "#C9924A", "opacity": 0.85},
-    )])
+    fig = go.Figure(
+        data=[go.Bar(x=amounts, y=names, orientation="h", text=[f"€{a:,.2f}" for a in amounts], textposition="outside")]
+    )
     fig.update_layout(
-        height=max(180, len(names) * 36),
-        xaxis={"title": "Total (€)", **axes},
-        yaxis={"autorange": "reversed", **axes},
-        margin={"l": 0, "r": 90, "t": 10, "b": 40},
-        **{k: v for k, v in _CHART_BASE.items() if k != "margin"},
+        height=max(200, len(names) * 40),
+        xaxis_title="Total (€)",
+        yaxis={"autorange": "reversed"},
+        margin={"l": 0, "r": 80, "t": 10, "b": 40},
     )
     st.plotly_chart(fig, use_container_width=True)
 
 
 def show_transaction_table(token: str, date_from, date_to, category_filter: str):
+    """Display processed transactions as interactive cards."""
     success, response = make_api_call(
-        "GET", ENDPOINTS["processed_transactions"], token=token,
+        "GET",
+        ENDPOINTS["processed_transactions"],
+        token=token,
         params={
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
@@ -218,11 +203,13 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
             "sort_order": "desc",
         },
     )
+
     if not success:
         st.error(f"Failed to load transactions: {response}")
         return
 
     transactions = response.get("transactions", [])
+
     if category_filter != "All":
         transactions = [tx for tx in transactions if tx.get("category") == category_filter]
 
@@ -232,36 +219,20 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
 
     for tx in transactions:
         tx_id = tx["id"]
-        amount = tx.get("amount", 0)
-        merchant = tx.get("merchant") or "—"
-        bank = tx.get("bank") or ""
-        owner = tx.get("owner") or ""
-        date = format_date(tx["date"])
-        category = tx.get("category") or ""
-
-        bank_html = (
-            f'<span style="color:#4a4640;font-size:11px"> · {bank}</span>'
-            if bank else ""
-        )
-        owner_html = (
-            f'<span style="color:#6b6460;font-size:11px;padding:1px 7px;'
-            f'background:#1a1a1a;border-radius:3px;white-space:nowrap">{owner}</span>'
-            if owner else ""
-        )
-        pill = category_pill_html(category)
-        amount_str = format_currency(amount)
-
         with st.container(border=True):
-            st.markdown(
-                f'<div style="display:flex;align-items:center;gap:14px;padding:2px 0;flex-wrap:wrap">'
-                f'<span style="color:#4a4640;font-size:11px;font-variant-numeric:tabular-nums;min-width:72px">{date}</span>'
-                f'<span style="color:#e4ddd3;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;min-width:88px">{amount_str}</span>'
-                f'<span style="color:#c8c3bc;font-size:13px;font-weight:500;flex:1;min-width:120px">{merchant}{bank_html}</span>'
-                f'{owner_html}'
-                f'{pill}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
+            bank = tx.get("bank") or ""
+            merchant = tx.get("merchant") or "—"
+            c1, c2, c3, c4, c5 = st.columns([1, 0.9, 0.9, 0.9, 3.2])
+            with c1:
+                st.markdown(f"**{format_date(tx['date'])}**")
+            with c2:
+                st.markdown(format_currency(tx["amount"]))
+            with c3:
+                st.markdown(tx.get("owner") or "—")
+            with c4:
+                st.markdown(tx.get("category") or "—")
+            with c5:
+                st.markdown(f"**{merchant}**" + (f"  ·  *{bank}*" if bank else ""))
 
             show_tag_section(token, tx_id, tx.get("tags", []), ENDPOINTS, edit_key=f"b_editing_{tx_id}")
 
@@ -272,27 +243,23 @@ def show_transaction_table(token: str, date_from, date_to, category_filter: str)
 def show_browse_edit_form(token: str, tx: dict):
     tx_id = tx["id"]
     with st.form(key=f"b_edit_form_{tx_id}"):
-        st.markdown("**Edit transaction**")
+        st.markdown("**Edit Transaction**")
         c1, c2 = st.columns(2)
         with c1:
             merchant = st.text_input("Merchant", value=tx.get("merchant", ""), key=f"b_merch_{tx_id}")
             amount = st.number_input("Amount", value=float(tx["amount"]), key=f"b_amt_{tx_id}")
             owner_options = ["—", "Rafael", "Heloisa", "Shared"]
             current_owner = tx.get("owner") or "—"
-            owner = st.selectbox(
-                "Owner", owner_options,
+            owner = st.selectbox("Owner", owner_options,
                 index=owner_options.index(current_owner) if current_owner in owner_options else 0,
-                key=f"b_owner_{tx_id}",
-            )
+                key=f"b_owner_{tx_id}")
         with c2:
             description = st.text_input("Description", value=tx.get("description") or "", key=f"b_desc_{tx_id}")
             cat_options = ["—"] + CATEGORIES
             current_cat = tx.get("category") or "—"
-            category = st.selectbox(
-                "Category", cat_options,
+            category = st.selectbox("Category", cat_options,
                 index=cat_options.index(current_cat) if current_cat in cat_options else 0,
-                key=f"b_cat_{tx_id}",
-            )
+                key=f"b_cat_{tx_id}")
         if st.form_submit_button("Save"):
             data = {"merchant": merchant, "amount": amount, "description": description}
             if owner != "—":
@@ -306,7 +273,7 @@ def show_browse_edit_form(token: str, tx: dict):
                 token=token,
             )
             if success:
-                st.success("Saved")
+                st.success("✓ Updated")
                 st.session_state[f"b_editing_{tx_id}"] = False
                 st.rerun()
             else:
@@ -317,9 +284,7 @@ def show_browse_edit_form(token: str, tx: dict):
 
 
 def show_monthly_chart(token: str):
-    success, response = make_api_call(
-        "GET", ENDPOINTS["analytics_by_month"], token=token, params={"months": 12},
-    )
+    success, response = make_api_call("GET", ENDPOINTS["analytics_by_month"], token=token, params={"months": 12})
     if not success:
         st.error(f"Failed to load monthly data: {response}")
         return
@@ -327,22 +292,10 @@ def show_monthly_chart(token: str):
     if not data:
         st.info("No data yet")
         return
-
     months = [d["month"] for d in data]
     totals = [d["total"] for d in data]
-    axes = _chart_axes()
-    fig = go.Figure(data=[go.Bar(
-        x=months, y=totals,
-        text=[f"€{t:,.0f}" for t in totals],
-        textposition="outside",
-        marker={"color": "#C9924A", "opacity": 0.85},
-    )])
-    fig.update_layout(
-        height=320,
-        xaxis={"title": None, **axes},
-        yaxis={"title": "Total (€)", **axes},
-        **_CHART_BASE,
-    )
+    fig = go.Figure(data=[go.Bar(x=months, y=totals, text=[f"€{t:,.0f}" for t in totals], textposition="outside")])
+    fig.update_layout(xaxis_title="Month", yaxis_title="Total (€)", height=350, margin={"t": 20})
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -358,32 +311,21 @@ def show_owner_chart(token: str, date_from, date_to):
     if not data:
         st.info("No categorized owner data for this period")
         return
-
     owners = [d["owner"] for d in data]
     totals = [d["total"] for d in data]
-    owner_colors = {"Rafael": "#4da6ff", "Heloisa": "#f472b6", "Shared": "#2dd4bf"}
-    bar_colors = [owner_colors.get(o, "#888888") for o in owners]
-
-    axes = _chart_axes()
+    colors = {"Rafael": "#4C78A8", "Heloisa": "#E45756", "Shared": "#72B7B2"}
+    bar_colors = [colors.get(o, "#BAB0AC") for o in owners]
     fig = go.Figure(data=[go.Bar(
         x=owners, y=totals,
         marker_color=bar_colors,
-        text=[f"€{t:,.0f}" for t in totals],
-        textposition="outside",
+        text=[f"€{t:,.0f}" for t in totals], textposition="outside",
     )])
-    fig.update_layout(
-        height=280,
-        xaxis={"title": None, **axes},
-        yaxis={"title": "Total (€)", **axes},
-        **_CHART_BASE,
-    )
+    fig.update_layout(yaxis_title="Total (€)", height=300, margin={"t": 20})
     st.plotly_chart(fig, use_container_width=True)
 
 
 def show_category_trends_chart(token: str):
-    success, response = make_api_call(
-        "GET", ENDPOINTS["analytics_category_trends"], token=token, params={"months": 6},
-    )
+    success, response = make_api_call("GET", ENDPOINTS["analytics_category_trends"], token=token, params={"months": 6})
     if not success:
         st.error(f"Failed to load category trends: {response}")
         return
@@ -391,57 +333,56 @@ def show_category_trends_chart(token: str):
     if not trends:
         st.info("No data yet")
         return
-
+    # Pivot: category → {month: total}
     from collections import defaultdict
     cat_month: dict[str, dict[str, float]] = defaultdict(dict)
     all_months: set[str] = set()
     for row in trends:
         cat_month[row["category"]][row["month"]] = row["total"]
         all_months.add(row["month"])
-
     months_sorted = sorted(all_months)
+    # Top 6 categories by total spend
     cat_totals = {cat: sum(mv.values()) for cat, mv in cat_month.items()}
     top_cats = sorted(cat_totals, key=cat_totals.get, reverse=True)[:6]
-
-    axes = _chart_axes()
     fig = go.Figure()
     for cat in top_cats:
-        fg = _CAT_COLORS.get(cat, ("#1a1a1a", "#888888"))[1]
         fig.add_trace(go.Bar(
             name=cat,
             x=months_sorted,
             y=[cat_month[cat].get(m, 0) for m in months_sorted],
-            marker={"color": fg, "opacity": 0.85},
         ))
     fig.update_layout(
-        barmode="stack",
-        height=360,
-        xaxis={"title": None, **axes},
-        yaxis={"title": "Total (€)", **axes},
-        legend={"orientation": "h", "y": -0.25, "font": {"size": 11}},
-        margin={"t": 20, "b": 80, "l": 0, "r": 0},
-        **{k: v for k, v in _CHART_BASE.items() if k != "margin"},
+        barmode="stack", xaxis_title="Month", yaxis_title="Total (€)",
+        height=380, legend={"orientation": "h", "y": -0.2}, margin={"t": 20},
     )
     st.plotly_chart(fig, use_container_width=True)
 
 
 def export_csv(token: str, date_from, date_to):
+    """Export transactions as CSV."""
     success, response = make_api_call(
-        "GET", ENDPOINTS["export_transactions"], token=token,
+        "GET",
+        ENDPOINTS["export_transactions"],
+        token=token,
         params={
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
             "format": "csv",
         },
     )
+
     if not success:
         st.error(f"Failed to export: {response}")
         return
 
+    # Response should be CSV content
+    csv_content = response
+
     filename = f"transactions_{datetime.now().strftime('%Y%m%d')}.csv"
+
     st.download_button(
-        label="Download CSV",
-        data=response,
+        label="📥 Download CSV",
+        data=csv_content,
         file_name=filename,
         mime="text/csv",
     )

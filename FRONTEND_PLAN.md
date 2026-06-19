@@ -92,6 +92,9 @@ frontend-react/
 │   │   │   ├── TransactionRow.jsx
 │   │   │   ├── EditForm.jsx     # Inline slide-down edit
 │   │   │   └── Browse.module.css
+│   │   ├── Analytics/
+│   │   │   ├── Analytics.jsx    # Full analytics dashboard + filters
+│   │   │   └── Analytics.module.css
 │   │   ├── ReviewQueue/
 │   │   │   ├── ReviewQueue.jsx  # Split: transaction list + document panel
 │   │   │   ├── ReviewCard.jsx
@@ -215,6 +218,23 @@ export async function apiFetch(method, path, { token, body, params } = {}) {
 - Category dropdown (All + 13 categories)
 - Filters refetch analytics + table on change
 
+### Analytics (`/analytics`)
+
+**Layout:** Topbar (title + date filters + month window) | responsive analytics grid
+
+**Graphs:**
+- Spending per category: donut chart + ranked legend
+- Spending per month: monthly bar chart
+- Weekly trend: area chart
+- Category trends: stacked monthly bar chart for top categories
+- Spending by owner: horizontal bar chart
+- Spending by tag: horizontal bar chart
+
+**Summary metrics:**
+- Total spending
+- Monthly average
+- Top category
+
 ### Review Queue (`/review`)
 
 **Layout:** Topbar (title + "Poll Gmail" button) | Split pane — left 60% transaction list, right 40% document viewer
@@ -289,7 +309,7 @@ export const PAGE_SIZE = 15  // increase from Streamlit's 10 — table fits more
 
 ## Sidebar Navigation Logic
 
-Mirrors existing Streamlit logic: if pending transactions exist, Review Queue shows badge count. Order is always: Browse → Review Queue → Statements → Rules.
+Mirrors existing Streamlit logic: if pending transactions exist, Review Queue shows badge count. Order is always: Browse → Analytics → Review Queue → Statements → Rules.
 
 Check pending count on app load with a lightweight GET `/api/transactions/pending?limit=1` — store result in context.
 
@@ -330,13 +350,16 @@ origins = [
    - Transaction table + pagination
    - Inline edit form
    - Tags
-7. **Review Queue** — second priority (has pending badge dependency)
+7. **Analytics page** — dedicated chart workspace
+   - Category, monthly, weekly, owner, tag, and category-trend charts
+   - Date filters and month-window selector
+8. **Review Queue** — second priority (has pending badge dependency)
    - Cards with inline dropdowns
    - Approve / Reject
    - Document panel
-8. **Statements** — upload zone + list
-9. **Rules** — expandable categories + keyword CRUD
-10. **Polish** — loading skeletons, error states, toast notifications, CSV export
+9. **Statements** — upload zone + list
+10. **Rules** — expandable categories + keyword CRUD
+11. **Polish** — loading skeletons, error states, toast notifications, CSV export
 
 ---
 

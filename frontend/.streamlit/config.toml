@@ -1,13 +1,13 @@
 [theme]
 base = "dark"
-primaryColor = "#FF6B6B"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#1A1D27"
-textColor = "#FAFAFA"
+primaryColor = "#C9924A"
+backgroundColor = "#0a0a0a"
+secondaryBackgroundColor = "#141414"
+textColor = "#e4ddd3"
 font = "sans serif"
 
 [client]
-showErrorDetails = true
+showErrorDetails = false
 
 [logger]
-level = "info"
+level = "warning"

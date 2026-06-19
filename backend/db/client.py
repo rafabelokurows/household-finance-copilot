@@ -5,9 +5,10 @@ from contextlib import contextmanager
 
 from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import RealDictCursor
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 _pool: ThreadedConnectionPool | None = None
 

@@ -9,6 +9,7 @@ USERS = {
     "test": "password",
     "rafael": "rafael123",
     "heloisa": "heloisa123",
+    "demo": "demo",
 }
 
 # In-memory token store (simple mock; in production, use JWT)
